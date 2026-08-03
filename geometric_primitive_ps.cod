@@ -27,7 +27,7 @@ dcl_output o0.xyzw
 //   v1.x <- pin.color.x; v1.y <- pin.color.y; v1.z <- pin.color.z; v1.w <- pin.color.w; 
 //   o0.x <- <main return value>.x; o0.y <- <main return value>.y; o0.z <- <main return value>.z; o0.w <- <main return value>.w
 //
-#line 5 "C:\Users\2250198\OneDrive - yamaguchigakuen\チEクトップ\x3dgp.00\geometric_primitive_ps.hlsl"
+#line 5 "C:\Users\2250198\OneDrive - yamaguchigakuen\チEクトップ\夏休み課題\geometric_primitive_ps.hlsl"
 mov o0.xyzw, v1.xyzw
 ret 
 // Approximately 2 instruction slots used

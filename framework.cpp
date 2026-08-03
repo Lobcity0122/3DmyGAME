@@ -197,7 +197,7 @@ bool framework::initialize()
 	_ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr));
 
 	// 4:ワイヤーフレーム描画（裏面も描画）
-	rasterizer_desc.FillMode = D3D11_FILL_SOLID;
+	rasterizer_desc.FillMode = D3D11_FILL_WIREFRAME;
 	rasterizer_desc.CullMode = D3D11_CULL_NONE;
 	rasterizer_desc.AntialiasedLineEnable = TRUE;
 	hr = device->CreateRasterizerState(&rasterizer_desc, rasterizer_states[3].GetAddressOf());
@@ -278,13 +278,52 @@ bool framework::initialize()
 	// \\Mr.Incredible\\Mr.Incredible.obj
 
 	// skinned_meshオブジェクトを生成する
-	skinned_meshes[0] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\cube.003.1.fbx",true); // \\cube.000.fbx
+	skinned_meshes[0] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\cube.000.fbx",true); // \\cube.000.fbx
 
 	return true;
 }
 
 void framework::update(float elapsed_time/*Elapsed seconds from last frame*/)
 {
+	// --- WASDキーによるカメラ移動処理 ---
+	float move_speed = camera_speed * elapsed_time;
+
+	// ラジアンに変換
+	float yaw_rad = DirectX::XMConvertToRadians(camera_yaw);
+	float cos_yaw = cosf(yaw_rad);
+	float sin_yaw = sinf(yaw_rad);
+
+	// 前後左右の移動ベクトルを計算
+	DirectX::XMVECTOR move_vector = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+
+	if (GetAsyncKeyState('W') & 0x8000) { // 前進
+		move_vector = DirectX::XMVectorAdd(move_vector, DirectX::XMVectorSet(sin_yaw, 0.0f, cos_yaw, 0.0f));
+	}
+
+	if (GetAsyncKeyState('S') & 0x8000) { // 後退
+		move_vector = DirectX::XMVectorAdd(move_vector, DirectX::XMVectorSet(-sin_yaw, 0.0f, -cos_yaw, 0.0f));
+	}
+
+	// 移動ベクトルを正規化してスピードを掛ける
+	move_vector = DirectX::XMVector3Normalize(move_vector);
+	move_vector = DirectX::XMVectorScale(move_vector, move_speed);
+
+	// カメラ位置に反映
+	camera_position.x += DirectX::XMVectorGetX(move_vector);
+	camera_position.z += DirectX::XMVectorGetZ(move_vector);
+
+	// --- A/Dキーによるオブジェクトのロール回転処理 ---
+	if (GetAsyncKeyState('A') & 0x8000) { // Aキー：右ロール回転
+		skinned_mesh_rotation.z += rotate_speed * elapsed_time;
+	}
+	if (GetAsyncKeyState('D') & 0x8000) { // Dキー：左ロール回転
+		skinned_mesh_rotation.z -= rotate_speed * elapsed_time;
+	}
+
+	// 角度が 360 度を超えたりマイナスになったりしたときの正規化
+	if (skinned_mesh_rotation.z > 180.0f)  skinned_mesh_rotation.z -= 360.0f;
+	if (skinned_mesh_rotation.z < -180.0f) skinned_mesh_rotation.z += 360.0f;
+
 #ifdef USE_IMGUI
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
@@ -404,7 +443,7 @@ void framework::update(float elapsed_time/*Elapsed seconds from last frame*/)
 		// 姿勢の調整（-180度～180度）0.5fはドラッグのスピード
 		ImGui::DragFloat3("skinned_Rota", &skinned_mesh_rotation.x, 0.5f, -360.0f, 360.0f);
 		// 寸法の調整（0.1倍～5.0倍）
-		ImGui::SliderFloat3("skinned_Scale", &skinned_mesh_scale.x, 0.1f, 5.0f);
+		ImGui::SliderFloat3("skinned_Scale", &skinned_mesh_scale.x, 0.1f, 20.0f);
 		// 色の調整（カラーピッカー）
 		ImGui::ColorEdit4("skinned Color", skinned_mesh_color);
 	}
@@ -437,7 +476,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	immediate_context->OMSetBlendState(blend_states[Blend_index].Get(), nullptr, 0xFFFFFFFF);
 
 	// ラスタライザステートの切り替え(2D)
-	immediate_context->RSSetState(rasterizer_states[5].Get());
+	immediate_context->RSSetState(rasterizer_states[4].Get());
 
 	// renderメンバ関数でのspriteオブジェクトの描画方法を変更する
 	/*sprites[0]->render(immediate_context.Get(), 
@@ -512,9 +551,23 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	float aspect_ratio{ viewport.Width / viewport.Height };
 	XMMATRIX P{ XMMatrixPerspectiveFovLH(XMConvertToRadians(30), aspect_ratio, 0.1f, 100.0f) };
 
-	// ImGuiの変数からカメラ位置を設定する
+	// --- 1人称視点用のカメラ・ビュー行列の計算 ---
 	XMVECTOR eye{ XMVectorSet(camera_position.x, camera_position.y, camera_position.z, 1.0f) };
-	XMVECTOR focus{ XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f) }; // 注視点
+
+	// 視線の向き（Yaw, Pitch）から前方向ベクトルを算出
+	float yaw_rad = DirectX::XMConvertToRadians(camera_yaw);
+	float pitch_rad = DirectX::XMConvertToRadians(camera_pitch);
+
+	// 前方向ベクトルを計算する
+	XMVECTOR look_direction = DirectX::XMVectorSet(
+		cosf(pitch_rad) * sinf(yaw_rad),
+		sinf(pitch_rad),
+		cosf(pitch_rad) * cosf(yaw_rad),
+		0.0f
+	);
+
+	// 注視点 = カメラの位置 + 前方向ベクトル
+	XMVECTOR focus{ DirectX::XMVectorAdd(eye, look_direction) };
 	XMVECTOR up{ XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f) };    // 上方向ベクトル
 	XMMATRIX V{ XMMatrixLookAtLH(eye, focus, up) };
 
@@ -571,7 +624,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	// 拡大縮小（S）・回転（R）・平行移動（T）行列を計算する
 	//XMMATRIX S{ XMMatrixScaling(cube_scale.x, cube_scale.y, cube_scale.z) };
 	XMMATRIX S3{ XMMatrixScaling(static_mesh_scale.x, static_mesh_scale.y, static_mesh_scale.z) };
-	XMMATRIX S4{ XMMatrixScaling(skinned_mesh_scale.x, skinned_mesh_scale.y, skinned_mesh_scale.z) };
+	XMMATRIX S4{ XMMatrixScaling(2.5f, 2.5f, 20.0f) };
 
 	// 回転は度数法からラジアンに変換して行列に渡す(ImGuiを使うため)
 	// XMMATRIX R{ XMMatrixRotationRollPitchYaw(0.0f, 0.0f, 0.0f) };
@@ -713,10 +766,12 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	immediate_context->RSSetState(rasterizer_states[1].Get());
 
 	// geometric_primitive の正六面体を使って箱を描画
-	geometric_primitives[0]->render(immediate_context.Get(), bbox_world_matrix, DirectX::XMFLOAT4(0.0f, 1.0f, 0.0f, 0.5f));
+	//geometric_primitives[0]->render(immediate_context.Get(), bbox_world_matrix, DirectX::XMFLOAT4(0.0f, 1.0f, 0.0f, 0.5f));
 
 	// ラスタライザステートを「ソリッド」に戻す
 	immediate_context->RSSetState(rasterizer_states[0].Get());
+
+	immediate_context->RSSetState(rasterizer_states[3].Get());
 
 	// skinned_meshクラスのrenderメンバ関数を呼び出す
 	skinned_meshes[0]->render(

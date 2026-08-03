@@ -113,7 +113,10 @@ public:
 
 	// [カメラ用のパラメータ]
 	// カメラの位置 (0, 0, -10)
-	DirectX::XMFLOAT4 camera_position{ 0.0f,0.0f,-10.0f ,1.0f };
+	DirectX::XMFLOAT4 camera_position{ 0.0f,1.0f,-5.0f,1.0f };
+	float camera_yaw = 0.0f;    // 左右の視線角度（度数法）
+	float camera_pitch = 0.0f;  // 上下の視線角度（度数法）
+	float camera_speed = 10.0f;  // 移動速度
 
 	// ライトの照射方向
 	DirectX::XMFLOAT4 light_direction{ 0.0f,0.0f,1.0f,0.0f };
@@ -149,6 +152,9 @@ public:
 	DirectX::XMFLOAT3 skinned_mesh_scale{ 1.0f,1.0f,1.0f };
 
 	float skinned_mesh_color[4] = { 1.0f,1.0f,1.0f,1.0f };
+
+	// オブジェクトの回転速度（1秒あたりの度数）
+	float rotate_speed = 90.0f;  
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	

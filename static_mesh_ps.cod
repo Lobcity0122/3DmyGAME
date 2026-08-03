@@ -65,7 +65,7 @@ dcl_temps 6
 //   v4.x <- pin.world_normal.x; v4.y <- pin.world_normal.y; v4.z <- pin.world_normal.z; v4.w <- pin.world_normal.w; 
 //   o0.x <- <main return value>.x; o0.y <- <main return value>.y; o0.z <- <main return value>.z; o0.w <- <main return value>.w
 //
-#line 16 "C:\Users\2250198\OneDrive - yamaguchigakuen\チEクトップ\x3dgp.00\static_mesh_ps.hlsl"
+#line 16 "C:\Users\2250198\OneDrive - yamaguchigakuen\チEクトップ\夏休み課題\static_mesh_ps.hlsl"
 sample_indexable(texture2d)(float,float,float,float) r0.xyzw, v2.xyxx, t0.xyzw, s2  // r0.x <- color.x; r0.y <- color.y; r0.z <- color.z; r0.w <- color.w
 
 #line 17

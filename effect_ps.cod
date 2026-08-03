@@ -40,7 +40,7 @@ dcl_temps 3
 //   v2.x <- pin.texcoord.x; v2.y <- pin.texcoord.y; 
 //   o0.x <- <main return value>.x; o0.y <- <main return value>.y; o0.z <- <main return value>.z; o0.w <- <main return value>.w
 //
-#line 12 "C:\Users\2250198\OneDrive - yamaguchigakuen\チEクトップ\x3dgp.00\effect_ps.hlsl"
+#line 12 "C:\Users\2250198\OneDrive - yamaguchigakuen\チEクトップ\夏休み課題\effect_ps.hlsl"
 mov r0.x, l(0)  // r0.x <- colour_map_mip_level
 
 #line 13

@@ -60,7 +60,7 @@ dcl_temps 3
 //   v4.x <- pin.color.x; v4.y <- pin.color.y; v4.z <- pin.color.z; v4.w <- pin.color.w; 
 //   o0.x <- <main return value>.x; o0.y <- <main return value>.y; o0.z <- <main return value>.z; o0.w <- <main return value>.w
 //
-#line 11 "C:\Users\2250198\OneDrive - yamaguchigakuen\チEクトップ\x3dgp.00\skinned_mesh_ps.hlsl"
+#line 11 "C:\Users\2250198\OneDrive - yamaguchigakuen\チEクトップ\夏休み課題\skinned_mesh_ps.hlsl"
 sample_indexable(texture2d)(float,float,float,float) r0.xyzw, v3.xyxx, t0.xyzw, s2  // r0.x <- color.x; r0.y <- color.y; r0.z <- color.z; r0.w <- color.w
 
 #line 12
@@ -75,12 +75,11 @@ rsq r1.w, r1.w
 mul r2.xyz, r1.wwww, r2.xyzx  // r2.x <- L.x; r2.y <- L.y; r2.z <- L.z
 
 #line 14
-itof r1.w, l(0)
 dp3 r1.x, r1.xyzx, r2.xyzx
-max r1.x, r1.x, r1.w
+max r1.x, r1.x, l(0.400000)
 mul r0.xyz, r0.xyzx, r1.xxxx  // r0.x <- diffuse.x; r0.y <- diffuse.y; r0.z <- diffuse.z
 
 #line 15
 mul o0.xyzw, r0.xyzw, v4.xyzw
 ret 
-// Approximately 14 instruction slots used
+// Approximately 13 instruction slots used

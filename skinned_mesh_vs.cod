@@ -74,7 +74,7 @@ dcl_temps 5
 //   o1.x <- <main return value>.world_position.x; o1.y <- <main return value>.world_position.y; o1.z <- <main return value>.world_position.z; o1.w <- <main return value>.world_position.w; 
 //   o0.x <- <main return value>.position.x; o0.y <- <main return value>.position.y; o0.z <- <main return value>.position.z; o0.w <- <main return value>.position.w
 //
-#line 5 "C:\Users\2250198\OneDrive - yamaguchigakuen\チEクトップ\x3dgp.00\skinned_mesh_vs.hlsl"
+#line 5 "C:\Users\2250198\OneDrive - yamaguchigakuen\チEクトップ\夏休み課題\skinned_mesh_vs.hlsl"
 mul r0.xyzw, cb0[0].xxxx, cb1[0].xyzw
 mul r1.xyzw, cb0[0].yyyy, cb1[1].xyzw
 add r0.xyzw, r0.xyzw, r1.xyzw
