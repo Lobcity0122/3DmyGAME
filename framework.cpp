@@ -1,5 +1,6 @@
 ﻿#include "framework.h"
 #include "shader.h"
+// 3dゲーム制作課題
 
 using namespace DirectX;
 
