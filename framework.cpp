@@ -278,7 +278,7 @@ bool framework::initialize()
 	// \\Mr.Incredible\\Mr.Incredible.obj
 
 	// skinned_meshオブジェクトを生成する
-	skinned_meshes[0] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\cube.000.fbx",true); // \\cube.000.fbx
+	skinned_meshes[0] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\Tunnel_fbx\\tunnel.fbx",true); // \\cube.000.fbx
 
 	return true;
 }
@@ -548,8 +548,9 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	UINT num_viewports{ 1 };
 	immediate_context->RSGetViewports(&num_viewports, &viewport);
 
+	// 射影行列の計算
 	float aspect_ratio{ viewport.Width / viewport.Height };
-	XMMATRIX P{ XMMatrixPerspectiveFovLH(XMConvertToRadians(30), aspect_ratio, 0.1f, 100.0f) };
+	XMMATRIX P{ XMMatrixPerspectiveFovLH(XMConvertToRadians(60), aspect_ratio, 0.1f, 300.0f) };
 
 	// --- 1人称視点用のカメラ・ビュー行列の計算 ---
 	XMVECTOR eye{ XMVectorSet(camera_position.x, camera_position.y, camera_position.z, 1.0f) };
@@ -624,7 +625,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	// 拡大縮小（S）・回転（R）・平行移動（T）行列を計算する
 	//XMMATRIX S{ XMMatrixScaling(cube_scale.x, cube_scale.y, cube_scale.z) };
 	XMMATRIX S3{ XMMatrixScaling(static_mesh_scale.x, static_mesh_scale.y, static_mesh_scale.z) };
-	XMMATRIX S4{ XMMatrixScaling(2.5f, 2.5f, 20.0f) };
+	XMMATRIX S4{ XMMatrixScaling(skinned_mesh_scale.x, skinned_mesh_scale.y, skinned_mesh_scale.z) };
 
 	// 回転は度数法からラジアンに変換して行列に渡す(ImGuiを使うため)
 	// XMMATRIX R{ XMMatrixRotationRollPitchYaw(0.0f, 0.0f, 0.0f) };
@@ -657,7 +658,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	DirectX::XMFLOAT4X4 world3;
 	DirectX::XMStoreFloat4x4(&world3, S3 * R3 * T3);
 	DirectX::XMFLOAT4X4 world4;
-	DirectX::XMStoreFloat4x4(&world4, C* S4* R4* T4);
+	DirectX::XMStoreFloat4x4(&world4, /**/ C* S4* R4* T4);
 
 	// geometric_primitive クラスの render メンバ関数を呼び出す
     // ※深度テスト：オン、深度ライト：オンの深度ステンシルステートをバインドしておく
@@ -771,7 +772,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	// ラスタライザステートを「ソリッド」に戻す
 	immediate_context->RSSetState(rasterizer_states[0].Get());
 
-	immediate_context->RSSetState(rasterizer_states[3].Get());
+	//immediate_context->RSSetState(rasterizer_states[3].Get());
 
 	// skinned_meshクラスのrenderメンバ関数を呼び出す
 	skinned_meshes[0]->render(

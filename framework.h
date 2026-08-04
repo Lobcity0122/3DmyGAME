@@ -149,7 +149,7 @@ public:
 
 	DirectX::XMFLOAT3 skinned_mesh_rotation{ 0.0f,0.0f,0.0f };
 
-	DirectX::XMFLOAT3 skinned_mesh_scale{ 1.0f,1.0f,1.0f };
+	DirectX::XMFLOAT3 skinned_mesh_scale{ 0.5f,0.5f,0.5f };
 
 	float skinned_mesh_color[4] = { 1.0f,1.0f,1.0f,1.0f };
 
