@@ -67,6 +67,9 @@
     <ClCompile Include="skinned_mesh.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="Collision.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
@@ -121,6 +124,9 @@
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="skinned_mesh.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="Collision.h">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>

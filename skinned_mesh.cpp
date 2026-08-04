@@ -146,6 +146,9 @@ void skinned_mesh::fetch_meshes(FbxScene* fbx_scene, std::vector<mesh>& meshes)
 		// メッシュのデフォルトのグローバルトランスフォームを取得
 		mesh.default_global_transform = to_xmfloat4x4(fbx_node->EvaluateGlobalTransform());
 
+        std::vector<vertex> vertices;
+        std::vector<uint32_t> indices;
+
 		// メッシュのサブセット情報を抽出する
         std::vector<mesh::subset>& subsets{ mesh.subsets };
         const int material_count{ fbx_mesh->GetNode()->GetMaterialCount() };
@@ -236,6 +239,10 @@ void skinned_mesh::fetch_meshes(FbxScene* fbx_scene, std::vector<mesh>& meshes)
 			   subset.index_count++;
            }
         }
+
+        // CPU側にレイキャスト用として頂点・インデックスを保持
+        mesh.cpu_vertices = mesh.vertices;
+        mesh.cpu_indices = mesh.indices;
     }
 }
 
@@ -305,7 +312,7 @@ void skinned_mesh::create_com_objects(ID3D11Device* device, const char* fbx_file
             mesh.index_buffer.ReleaseAndGetAddressOf());
         _ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr));
 
-    #if 1 // ※レイキャストを使う場合はここは0かコメントアウトしておく。(vertices)
+    #if 0 // ※レイキャストを使う場合はここは0かコメントアウトしておく。(vertices)
         mesh.vertices.clear();
         mesh.indices.clear();
     #endif

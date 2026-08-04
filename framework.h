@@ -82,6 +82,31 @@ public:
 	// sknned_mesh *型配列を要素数8で宣言
 	std::unique_ptr<skinned_mesh> skinned_meshes[8];
 
+	// =======================================================
+	// ▼ 追加：カメラ（自機）とステージ制御用の変数
+	// =======================================================
+	DirectX::XMFLOAT3 camera_position = { 0.0f, 1.0f, 5.0f }; // 自機の初期位置（土管の外側）
+	DirectX::XMFLOAT3 camera_target = { 0.0f, 1.0f, 0.0f };  // カメラの注視点
+	DirectX::XMFLOAT3 camera_up = { 0.0f, 1.0f, 0.0f };  // カメラの上方向ベクトル
+
+	float camera_angle_y = 0.0f; // 左右の首振り角度
+	float camera_angle_x = 0.0f; // 上下の首振り角度
+
+	// 土管（ステージ）のワールド変換行列（今回は原点に配置）
+	DirectX::XMFLOAT4X4 stage_world_matrix = {
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1
+	};
+
+	// デバッグ用：当たり判定情報
+	bool is_collision_detected = false;
+	DirectX::XMFLOAT3 last_hit_position = { 0.0f, 0.0f, 0.0f };
+	DirectX::XMFLOAT3 last_hit_normal = { 0.0f, 0.0f, 0.0f };
+	int mesh_count = 0;
+	int triangle_count = 0;
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// ImGuiで各種設定
 	// [ステート選択用インデックス]
@@ -112,8 +137,6 @@ public:
 	int sprite_draw_count = 1; // 描画するスプライトの個数
 
 	// [カメラ用のパラメータ]
-	// カメラの位置 (0, 0, -10)
-	DirectX::XMFLOAT4 camera_position{ 0.0f,1.0f,-5.0f,1.0f };
 	float camera_yaw = 0.0f;    // 左右の視線角度（度数法）
 	float camera_pitch = 0.0f;  // 上下の視線角度（度数法）
 	float camera_speed = 10.0f;  // 移動速度
@@ -149,12 +172,12 @@ public:
 
 	DirectX::XMFLOAT3 skinned_mesh_rotation{ 0.0f,0.0f,0.0f };
 
-	DirectX::XMFLOAT3 skinned_mesh_scale{ 0.5f,0.5f,0.5f };
+	DirectX::XMFLOAT3 skinned_mesh_scale{ 1.0f,1.0f,1.0f };
 
 	float skinned_mesh_color[4] = { 1.0f,1.0f,1.0f,1.0f };
 
 	// オブジェクトの回転速度（1秒あたりの度数）
-	float rotate_speed = 90.0f;  
+	float rotate_speed = 45.0f;  
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	

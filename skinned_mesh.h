@@ -95,9 +95,11 @@ public:
 			1, 0, 0, 0, 0,
 			1 
 		}; // デフォルトのグローバルトランスフォーム
-	};
 
-	std::vector<mesh> meshes; // メッシュ構造体のリスト
+		// CPU側の頂点・インデックスバッファを保持するメンバ変数
+		std::vector<vertex> cpu_vertices;
+		std::vector<uint32_t> cpu_indices;
+	};
 
 	// マテリアル構造体の定義
 	struct material 
@@ -113,7 +115,13 @@ public:
 		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shader_resource_views[4]; // テクスチャSRVの配列
 	};
 
-	std::unordered_map<uint64_t, material> materials; // マテリアルIDをキーとしたマテリアル構造体のマップ
+	// マテリアルIDをキーとしたマテリアル構造体のマップ
+	std::unordered_map<uint64_t, material> materials; 
+
+	// モデルが持つ全メッシュのリストを取得する関数
+	const std::vector<mesh>& GetMeshes() const { return meshes; }
+
+	std::vector<mesh> meshes; // メッシュ構造体のリスト
 
 private:
 	Microsoft::WRL::ComPtr<ID3D11VertexShader> vertex_shader;

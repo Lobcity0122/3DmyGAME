@@ -1,5 +1,6 @@
 ﻿#include "framework.h"
 #include "shader.h"
+#include "Collision.h"
 // 3dゲーム制作課題
 
 using namespace DirectX;
@@ -285,44 +286,220 @@ bool framework::initialize()
 
 void framework::update(float elapsed_time/*Elapsed seconds from last frame*/)
 {
-	// --- WASDキーによるカメラ移動処理 ---
-	float move_speed = camera_speed * elapsed_time;
+	// =======================================================
+	// 1. マウス操作による視点移動（FPSカメラ）
+	// =======================================================
+	static POINT prev_cursor_pos = { 0, 0 };
+	static bool is_first_frame = true;
 
-	// ラジアンに変換
-	float yaw_rad = DirectX::XMConvertToRadians(camera_yaw);
-	float cos_yaw = cosf(yaw_rad);
-	float sin_yaw = sinf(yaw_rad);
+	POINT cursor_pos;
+	GetCursorPos(&cursor_pos);
+	ScreenToClient(hwnd, &cursor_pos);
 
-	// 前後左右の移動ベクトルを計算
-	DirectX::XMVECTOR move_vector = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-
-	if (GetAsyncKeyState('W') & 0x8000) { // 前進
-		move_vector = DirectX::XMVectorAdd(move_vector, DirectX::XMVectorSet(sin_yaw, 0.0f, cos_yaw, 0.0f));
+	// 初回フレームのみ前回の位置をリセット
+	if (is_first_frame)
+	{
+		prev_cursor_pos = cursor_pos;
+		is_first_frame = false;
 	}
 
-	if (GetAsyncKeyState('S') & 0x8000) { // 後退
-		move_vector = DirectX::XMVectorAdd(move_vector, DirectX::XMVectorSet(-sin_yaw, 0.0f, -cos_yaw, 0.0f));
+	float dx = static_cast<float>(cursor_pos.x - prev_cursor_pos.x);
+	float dy = static_cast<float>(cursor_pos.y - prev_cursor_pos.y);
+
+	// マウス感度
+	float sensitivity = 0.005f;
+	camera_angle_y += dx * sensitivity;  // 左右の回転
+	camera_angle_x -= dy * sensitivity;  // 上下の回転（反転して自然な動きに）
+
+	// 上下の角度制限（真上や真下を向きすぎないように）
+	if (camera_angle_x > 1.5f) camera_angle_x = 1.5f;
+	if (camera_angle_x < -1.5f) camera_angle_x = -1.5f;
+
+	prev_cursor_pos = cursor_pos;
+
+	// カメラの正面ベクトル（前方向）を計算（視点操作用）
+	DirectX::XMMATRIX R = DirectX::XMMatrixRotationRollPitchYaw(camera_angle_x, camera_angle_y, 0.0f);
+	DirectX::XMVECTOR forward = DirectX::XMVector3TransformNormal(DirectX::XMVectorSet(0, 0, 1, 0), R);
+
+	// =======================================================
+	// 2. キーボードによる移動ベクトルの計算（視点方向に依存しない固定方向）
+	// =======================================================
+	float move_speed = 5.0f * elapsed_time;
+	DirectX::XMVECTOR move_vec = DirectX::XMVectorZero();
+
+	// 固定方向：W/SでZ軸方向、A/DでX軸方向
+	if (GetAsyncKeyState('W') & 0x8000) move_vec = DirectX::XMVectorSubtract(move_vec, DirectX::XMVectorSet(0, 0, 1, 0));  // 前（Z-）
+	if (GetAsyncKeyState('S') & 0x8000) move_vec = DirectX::XMVectorAdd(move_vec, DirectX::XMVectorSet(0, 0, 1, 0));  // 後ろ（Z+）
+	if (GetAsyncKeyState('D') & 0x8000) move_vec = DirectX::XMVectorSubtract(move_vec, DirectX::XMVectorSet(1, 0, 0, 0));  // 右（X+）
+	if (GetAsyncKeyState('A') & 0x8000) move_vec = DirectX::XMVectorAdd(move_vec, DirectX::XMVectorSet(1, 0, 0, 0));  // 左（X-）
+
+	// 移動ベクトルを正規化して速度を掛ける
+	if (DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(move_vec)) > 0.0f)
+	{
+		move_vec = DirectX::XMVector3Normalize(move_vec);
+		move_vec = DirectX::XMVectorScale(move_vec, move_speed);
 	}
 
-	// 移動ベクトルを正規化してスピードを掛ける
-	move_vector = DirectX::XMVector3Normalize(move_vector);
-	move_vector = DirectX::XMVectorScale(move_vector, move_speed);
+	// =======================================================
+	// ステージ（skinned_mesh）のワールド行列を更新
+	// =======================================================
+	const DirectX::XMFLOAT4X4 coordinate_system_transforms[]
+	{
+		{
+		    -1,0,0,0,0,
+		     1,0,0,0,0,
+		     1,0,0,0,0,
+		     1
+		}, // 左手座標系（DirectXのデフォルト）
 
-	// カメラ位置に反映
-	camera_position.x += DirectX::XMVectorGetX(move_vector);
-	camera_position.z += DirectX::XMVectorGetZ(move_vector);
+		{
+			 1,0,0,0,0,
+			 1,0,0,0,0,
+			 1,0,0,0,0,
+			 1
+		}, // 右手座標系（OpenGLのデフォルト）
 
-	// --- A/Dキーによるオブジェクトのロール回転処理 ---
-	if (GetAsyncKeyState('A') & 0x8000) { // Aキー：右ロール回転
-		skinned_mesh_rotation.z += rotate_speed * elapsed_time;
+		{
+			-1,0,0,0,0,
+			 0,-1,0,0,1,
+			 0,0,0,0,0,
+			 1
+		}, // 左手座標系（DirectXのデフォルト）＋Y軸反転
+
+		{
+			 1,0,0,0,0,
+			 0,1,0,0,1,
+			 0,0,0,0,0,
+			 1
+		}, // 右手座標系（OpenGLのデフォルト）＋Y軸反転
+	};
+
+	const float scale_factor = 1.0f;
+	DirectX::XMMATRIX C{
+	    DirectX::XMLoadFloat4x4(&coordinate_system_transforms[2])
+		* DirectX::XMMatrixScaling(scale_factor, scale_factor, scale_factor)
+	};
+
+	DirectX::XMMATRIX S4{ DirectX::XMMatrixScaling(skinned_mesh_scale.x, skinned_mesh_scale.y, skinned_mesh_scale.z) };
+	DirectX::XMMATRIX R4{ DirectX::XMMatrixRotationRollPitchYaw(
+	       DirectX::XMConvertToRadians(skinned_mesh_rotation.x),
+	       DirectX::XMConvertToRadians(skinned_mesh_rotation.y),
+	       DirectX::XMConvertToRadians(skinned_mesh_rotation.z)
+	) };
+	DirectX::XMMATRIX T4{ DirectX::XMMatrixTranslation(skinned_mesh_position.x, skinned_mesh_position.y, skinned_mesh_position.z) };
+
+	DirectX::XMStoreFloat4x4(&stage_world_matrix, C * S4 * R4 * T4);
+
+	// =======================================================
+	// 3. 当たり判定（レイキャスト）と壁ずり処理
+	// =======================================================
+	DirectX::XMFLOAT3 start = camera_position;
+	DirectX::XMVECTOR next_pos_vec = DirectX::XMVectorAdd(DirectX::XMLoadFloat3(&start), move_vec);
+
+	DirectX::XMFLOAT3 end;
+	DirectX::XMStoreFloat3(&end, next_pos_vec);
+
+	// デバッグ用：レイ情報を保存
+	last_hit_position = start;
+	last_hit_normal = DirectX::XMFLOAT3(end.x - start.x, end.y - start.y, end.z - start.z);
+
+	// デバッグ：モデル情報をカウント
+	mesh_count = 0;
+	triangle_count = 0;
+	if (skinned_meshes[0])
+	{
+		mesh_count = static_cast<int>(skinned_meshes[0]->GetMeshes().size());
+		for (const auto& mesh : skinned_meshes[0]->GetMeshes())
+		{
+			triangle_count += static_cast<int>(mesh.cpu_indices.size() / 3);
+		}
 	}
-	if (GetAsyncKeyState('D') & 0x8000) { // Dキー：左ロール回転
-		skinned_mesh_rotation.z -= rotate_speed * elapsed_time;
+
+	// 移動がある場合のみ当たり判定を行う
+	if (start.x != end.x || start.y != end.y || start.z != end.z)
+	{
+		DirectX::XMFLOAT3 hit_pos, hit_normal;
+
+		// デバッグ：モデルが読み込まれているか確認
+		bool model_loaded = (skinned_meshes[0] != nullptr);
+
+		// 読み込んだ土管が skinned_meshes[0] に入っている前提
+		if (model_loaded && Collision::RayCastSkinnedMesh(start, end, stage_world_matrix, skinned_meshes[0].get(), hit_pos, hit_normal))
+		{
+			// デバッグ情報を更新
+			is_collision_detected = true;
+			last_hit_position = hit_pos;
+			last_hit_normal = hit_normal;
+
+			// ぶつかった場合の壁ずりスライド計算
+			DirectX::XMVECTOR P = DirectX::XMLoadFloat3(&hit_pos);
+			DirectX::XMVECTOR E = DirectX::XMLoadFloat3(&end);
+			DirectX::XMVECTOR PE = DirectX::XMVectorSubtract(E, P);
+			DirectX::XMVECTOR N = DirectX::XMLoadFloat3(&hit_normal);
+
+			// マージン（カメラが壁に近すぎると裏側が透けるため少し離す）
+			float margin = 0.5f;
+			DirectX::XMVECTOR A = DirectX::XMVector3Dot(DirectX::XMVectorNegate(PE), N);
+			float a = DirectX::XMVectorGetX(A) + margin;
+
+			DirectX::XMVECTOR R_vec = DirectX::XMVectorAdd(PE, DirectX::XMVectorScale(N, a));
+			DirectX::XMVECTOR Q = DirectX::XMVectorAdd(P, R_vec);
+
+			DirectX::XMStoreFloat3(&camera_position, Q);
+		}
+		else
+		{
+			// デバッグ情報をリセット
+			is_collision_detected = false;
+
+			// 衝突しなかった場合はそのまま進む
+			camera_position = end;
+		}
 	}
 
-	// 角度が 360 度を超えたりマイナスになったりしたときの正規化
-	if (skinned_mesh_rotation.z > 180.0f)  skinned_mesh_rotation.z -= 360.0f;
-	if (skinned_mesh_rotation.z < -180.0f) skinned_mesh_rotation.z += 360.0f;
+	// 注視点をカメラ位置 + 前方向ベクトルに更新
+	DirectX::XMVECTOR target_vec = DirectX::XMVectorAdd(DirectX::XMLoadFloat3(&camera_position), forward);
+	DirectX::XMStoreFloat3(&camera_target, target_vec);
+
+
+	//// --- WASDキーによるカメラ移動処理 ---
+	//float move_speed = camera_speed * elapsed_time;
+
+	//// ラジアンに変換
+	//float yaw_rad = DirectX::XMConvertToRadians(camera_yaw);
+	//float cos_yaw = cosf(yaw_rad);
+	//float sin_yaw = sinf(yaw_rad);
+
+	//// 前後左右の移動ベクトルを計算
+	//DirectX::XMVECTOR move_vector = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+
+	//if (GetAsyncKeyState('W') & 0x8000) { // 前進
+	//	move_vector = DirectX::XMVectorAdd(move_vector, DirectX::XMVectorSet(sin_yaw, 0.0f, cos_yaw, 0.0f));
+	//}
+
+	//if (GetAsyncKeyState('S') & 0x8000) { // 後退
+	//	move_vector = DirectX::XMVectorAdd(move_vector, DirectX::XMVectorSet(-sin_yaw, 0.0f, -cos_yaw, 0.0f));
+	//}
+
+	//// 移動ベクトルを正規化してスピードを掛ける
+	//move_vector = DirectX::XMVector3Normalize(move_vector);
+	//move_vector = DirectX::XMVectorScale(move_vector, move_speed);
+
+	//// カメラ位置に反映
+	//camera_position.x += DirectX::XMVectorGetX(move_vector);
+	//camera_position.z += DirectX::XMVectorGetZ(move_vector);
+
+	//// --- A/Dキーによるオブジェクトのロール回転処理 ---
+	//if (GetAsyncKeyState('A') & 0x8000) { // Aキー：右ロール回転
+	//	skinned_mesh_rotation.z += rotate_speed * elapsed_time;
+	//}
+	//if (GetAsyncKeyState('D') & 0x8000) { // Dキー：左ロール回転
+	//	skinned_mesh_rotation.z -= rotate_speed * elapsed_time;
+	//}
+
+	//// 角度が 360 度を超えたりマイナスになったりしたときの正規化
+	//if (skinned_mesh_rotation.z > 180.0f)  skinned_mesh_rotation.z -= 360.0f;
+	//if (skinned_mesh_rotation.z < -180.0f) skinned_mesh_rotation.z += 360.0f;
 
 #ifdef USE_IMGUI
 	ImGui_ImplDX11_NewFrame();
@@ -447,6 +624,23 @@ void framework::update(float elapsed_time/*Elapsed seconds from last frame*/)
 		// 色の調整（カラーピッカー）
 		ImGui::ColorEdit4("skinned Color", skinned_mesh_color);
 	}
+
+	// 9. カメラと当たり判定情報
+	if (ImGui::CollapsingHeader("Camera & Collision", ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		ImGui::Text("Camera Position: %.2f, %.2f, %.2f", camera_position.x, camera_position.y, camera_position.z);
+		ImGui::Text("Camera Angle X: %.2f, Y: %.2f", camera_angle_x, camera_angle_y);
+		ImGui::Separator();
+		ImGui::Text("Model Info: Meshes=%d, Triangles=%d", mesh_count, triangle_count);
+		ImGui::Text("Collision Detected: %s", is_collision_detected ? "YES" : "NO");
+		ImGui::Text("Ray Start: %.2f, %.2f, %.2f", last_hit_position.x, last_hit_position.y, last_hit_position.z);
+		ImGui::Text("Ray Direction: %.2f, %.2f, %.2f", last_hit_normal.x, last_hit_normal.y, last_hit_normal.z);
+		if (is_collision_detected)
+		{
+			ImGui::Text("Hit Position: %.2f, %.2f, %.2f", last_hit_position.x, last_hit_position.y, last_hit_position.z);
+			ImGui::Text("Hit Normal: %.2f, %.2f, %.2f", last_hit_normal.x, last_hit_normal.y, last_hit_normal.z);
+		}
+	}
 	
 	ImGui::End();
 #endif
@@ -535,12 +729,12 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 		sprite_batches[0]->end(immediate_context.Get());*/
 	}
 
-	sprites[2]->textout(immediate_context.Get(), 
+	/*sprites[2]->textout(immediate_context.Get(), 
 		text_buffer, text_pos.x, text_pos.y,
 		text_size.x, text_size.y,
 		text_color.x, text_color.y, 
 		text_color.z, text_color.w
-	);
+	);*/
 
 	// ここからモデルの描画を行う(つまり3Dの描画)
 	// なので3Dの深度の設定を行う
@@ -556,8 +750,9 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	XMVECTOR eye{ XMVectorSet(camera_position.x, camera_position.y, camera_position.z, 1.0f) };
 
 	// 視線の向き（Yaw, Pitch）から前方向ベクトルを算出
-	float yaw_rad = DirectX::XMConvertToRadians(camera_yaw);
-	float pitch_rad = DirectX::XMConvertToRadians(camera_pitch);
+	// update関数で更新されるcamera_angle_x, camera_angle_yを使用
+	float yaw_rad = camera_angle_y;
+	float pitch_rad = camera_angle_x;
 
 	// 前方向ベクトルを計算する
 	XMVECTOR look_direction = DirectX::XMVectorSet(
@@ -578,7 +773,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 
 	// ImGuiの変数からライト方向を設定する
 	data.light_direction = light_direction;
-	data.camera_position = camera_position;
+	data.camera_position = DirectX::XMFLOAT4(camera_position.x, camera_position.y, camera_position.z, 1.0f);
 	immediate_context->UpdateSubresource(constant_buffers[0].Get(), 0, 0, &data, 0, 0);
 	immediate_context->VSSetConstantBuffers(1, 1, constant_buffers[0].GetAddressOf());
 	immediate_context->PSSetConstantBuffers(1, 1, constant_buffers[0].GetAddressOf());
