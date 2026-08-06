@@ -48,15 +48,30 @@ HRESULT load_texture_from_file(
             shader_resource_view
         );
 
-        // 読み込んだテクスチャを保存
-        resources.insert(make_pair(filename, *shader_resource_view));
+        // 読み込みに成功した場合のみマップに保存
+        if (SUCCEEDED(hr) && *shader_resource_view != nullptr)
+        {
+            resources[filename] = *shader_resource_view;
+        }
+        else
+        {
+            // 失敗した場合はエラーを返して即終了（QueryInterfaceを呼ばない）
+            if (shader_resource_view) *shader_resource_view = nullptr;
+            return hr;
+        }
     }
 
-    // テクスチャ情報取得（サイズなど）
-    ComPtr<ID3D11Texture2D> texture2d;
-    hr = resource->QueryInterface<ID3D11Texture2D>(texture2d.GetAddressOf());
+    // resource が nullptr でない場合のみテクスチャ情報を取得する
+    if (resource != nullptr)
+    {
+        ComPtr<ID3D11Texture2D> texture2d;
+        hr = resource->QueryInterface<ID3D11Texture2D>(texture2d.GetAddressOf());
 
-    texture2d->GetDesc(texture2d_desc);
+        if (SUCCEEDED(hr) && texture2d != nullptr && texture2d_desc != nullptr)
+        {
+            texture2d->GetDesc(texture2d_desc);
+        }
+    }
 
     return hr;
 }

@@ -82,11 +82,30 @@ public:
 	// sknned_mesh *型配列を要素数8で宣言
 	std::unique_ptr<skinned_mesh> skinned_meshes[8];
 
+	// グリッド描画用のバッファ
+	ComPtr<ID3D11Buffer> grid_vertex_buffer;
+	UINT grid_vertex_count = 0;
+	bool is_grid_initialized = false;
+
+	// 1頂点のデータ構造（座標＋色）
+	struct DebugVertex
+	{
+		DirectX::XMFLOAT3 position;
+		DirectX::XMFLOAT4 color;
+	};
+
+	bool show_debug_grid = true; // デバッググリッドの表示ON/OFF
+
+	// デバッグ用のシェーダーと入力レイアウト
+	ComPtr<ID3D11VertexShader> debug_vs;
+	ComPtr<ID3D11PixelShader> debug_ps;
+	ComPtr<ID3D11InputLayout> debug_input_layout;
+
 	// =======================================================
 	// ▼ 追加：カメラ（自機）とステージ制御用の変数
 	// =======================================================
-	DirectX::XMFLOAT3 camera_position = { 0.0f, 1.0f, 5.0f }; // 自機の初期位置（土管の外側）
-	DirectX::XMFLOAT3 camera_target = { 0.0f, 1.0f, 0.0f };  // カメラの注視点
+	//DirectX::XMFLOAT3 camera_position = { 0.0f, 1.0f, 5.0f }; // 自機の初期位置（土管の外側）
+	//DirectX::XMFLOAT3 camera_target = { 0.0f, 1.0f, 0.0f };  // カメラの注視点
 	DirectX::XMFLOAT3 camera_up = { 0.0f, 1.0f, 0.0f };  // カメラの上方向ベクトル
 
 	float camera_angle_y = 0.0f; // 左右の首振り角度
@@ -137,12 +156,25 @@ public:
 	int sprite_draw_count = 1; // 描画するスプライトの個数
 
 	// [カメラ用のパラメータ]
-	float camera_yaw = 0.0f;    // 左右の視線角度（度数法）
-	float camera_pitch = 0.0f;  // 上下の視線角度（度数法）
+	//float camera_yaw = 0.0f;    // 左右の視線角度（度数法）
+	//float camera_pitch = 0.0f;  // 上下の視線角度（度数法）
 	float camera_speed = 10.0f;  // 移動速度
 
 	// ライトの照射方向
 	DirectX::XMFLOAT4 light_direction{ 0.0f,0.0f,1.0f,0.0f };
+
+	// -------------------------------------------------------
+	// ▼ Unity / Unreal Engine カメラ用変数
+	// -------------------------------------------------------
+	DirectX::XMFLOAT3 camera_position = { 0.0f, 2.0f, -5.0f }; // カメラの位置
+	DirectX::XMFLOAT3 camera_target = { 0.0f, 0.0f, 0.0f };   // 注視点
+
+	float camera_pitch = 0.0f; // 上下の角度（ラジアン）
+	float camera_yaw = 0.0f;   // 左右の角度（ラジアン）
+
+	// マウスドラッグ用
+	POINT last_mouse_pos = { 0, 0 };
+	bool is_right_daging = false;
 
 	// [幾何プリミティブ用パラメータ]
 	// 位置
@@ -172,15 +204,27 @@ public:
 
 	DirectX::XMFLOAT3 skinned_mesh_rotation{ 0.0f,0.0f,0.0f };
 
-	DirectX::XMFLOAT3 skinned_mesh_scale{ 1.0f,1.0f,1.0f };
+	DirectX::XMFLOAT3 skinned_mesh_scale{ 0.25f,0.25f,0.25f };
 
-	float skinned_mesh_color[4] = { 1.0f,1.0f,1.0f,1.0f };
+	DirectX::XMFLOAT3 skinned_mesh_position2{ 0.0f,0.0f,0.0f };
+
+	DirectX::XMFLOAT3 skinned_mesh_rotation2{ 0.0f,0.0f,0.0f };
+
+	DirectX::XMFLOAT3 skinned_mesh_scale2{ 0.25f,0.25f,0.25f };
+
+	float skinned_mesh_color[4] = { 1.0f, 1.0f, 1.0f, 1.0f }; // 0.02f, 0.02f, 0.05f, 1.0f
+
+	float skinned_mesh_color2[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 	// オブジェクトの回転速度（1秒あたりの度数）
-	float rotate_speed = 45.0f;  
+	float rotate_speed = 45.0f;
+
+	// 操作モード切り替え用フラグ (true: カメラ操作, false: 自機(Cube)操作)
+	bool is_camera_control_mode = true;
+	bool is_key1_pressed_prev = false; // '1'キーの押下フラグ（トグル用）
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	
+
 	framework(HWND hwnd);
 	~framework();
 

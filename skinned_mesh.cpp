@@ -336,24 +336,66 @@ void skinned_mesh::create_com_objects(ID3D11Device* device, const char* fbx_file
     hr = device->CreateBuffer(&buffer_desc, nullptr, constant_buffer.ReleaseAndGetAddressOf());
     _ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr));
 
-    // シェーダーリソースビュー生成コードを追加
+    // シェーダーリソースビュー生成コード
     for (std::unordered_map<uint64_t, material>::iterator iterator = materials.begin();
         iterator != materials.end(); ++iterator)
     {
+        bool is_loaded = false;
+
         if (iterator->second.texture_filenames[0].size() > 0)
         {
             std::filesystem::path path(fbx_filename);
             path.replace_filename(iterator->second.texture_filenames[0]);
-            D3D11_TEXTURE2D_DESC texture2d_desc;
-            load_texture_from_file(device, path.c_str(),
-                iterator->second.shader_resource_views[0].GetAddressOf(), &texture2d_desc);
+
+            // 画像ファイルがディスク上に実際に存在する場合のみ読み込みを試みる
+            if (std::filesystem::exists(path))
+            {
+                D3D11_TEXTURE2D_DESC texture2d_desc{};
+                HRESULT hr = load_texture_from_file(
+                    device,
+                    path.c_str(),
+                    iterator->second.shader_resource_views[0].GetAddressOf(),
+                    &texture2d_desc
+                );
+
+                // 正常に読み込めて SRV が作成された場合のみ成功とする
+                if (SUCCEEDED(hr) && iterator->second.shader_resource_views[0] != nullptr)
+                {
+                    is_loaded = true;
+                }
+            }
         }
-        else
+
+        // 画像が存在しない・壊れている・指定がない場合はすべてダミー（白単色）テクスチャを作成して割り当てる
+        if (!is_loaded)
         {
-            make_dummy_texture(device, iterator->second.shader_resource_views[0].GetAddressOf(),
-                0xFFFFFFFF, 16);
+            make_dummy_texture(
+                device,
+                iterator->second.shader_resource_views[0].ReleaseAndGetAddressOf(),
+                0xFFFFFFFF,
+                16
+            );
         }
     }
+
+    //// シェーダーリソースビュー生成コードを追加
+    //for (std::unordered_map<uint64_t, material>::iterator iterator = materials.begin();
+    //    iterator != materials.end(); ++iterator)
+    //{
+    //    if (iterator->second.texture_filenames[0].size() > 0)
+    //    {
+    //        std::filesystem::path path(fbx_filename);
+    //        path.replace_filename(iterator->second.texture_filenames[0]);
+    //        D3D11_TEXTURE2D_DESC texture2d_desc;
+    //        load_texture_from_file(device, path.c_str(),
+    //            iterator->second.shader_resource_views[0].GetAddressOf(), &texture2d_desc);
+    //    }
+    //    else
+    //    {
+    //        make_dummy_texture(device, iterator->second.shader_resource_views[0].GetAddressOf(),
+    //            0xFFFFFFFF, 16);
+    //    }
+    //}
 }
 
 // 描画関数

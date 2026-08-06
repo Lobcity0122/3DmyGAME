@@ -1,7 +1,6 @@
 ﻿#include "framework.h"
 #include "shader.h"
 #include "Collision.h"
-// 3dゲーム制作課題
 
 using namespace DirectX;
 
@@ -12,7 +11,7 @@ framework::framework(HWND hwnd) : hwnd(hwnd)
 bool framework::initialize()
 {
 	// デバイス・デバイスコンテキスト・スワップチェーンの作成
-	HRESULT hr{ S_OK }; // エラーチェック　{}を使う方が処理が早い
+	HRESULT hr{ S_OK }; // エラーチェック {}を使う方が処理が早い
 
 	UINT create_device_flags{ 0 };
 #ifdef _DEBUG
@@ -20,7 +19,7 @@ bool framework::initialize()
 #endif 
 
 	// L11の機能を持った設定をしていく
-	D3D_FEATURE_LEVEL feature_levels{ D3D_FEATURE_LEVEL_11_0 }; 
+	D3D_FEATURE_LEVEL feature_levels{ D3D_FEATURE_LEVEL_11_0 };
 
 	// 画面の初期設定をする
 	DXGI_SWAP_CHAIN_DESC swap_chain_desc{};
@@ -98,11 +97,11 @@ bool framework::initialize()
 	depth_stencil_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 	depth_stencil_view_desc.Texture2D.MipSlice = 0;
 	hr = device->CreateDepthStencilView(depth_stencil_buffer.Get(), &depth_stencil_view_desc, depth_stencil_view.GetAddressOf());
-	_ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr)); 
+	_ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr));
 
 	// ブレンディングステートオブジェクトを作成する 
 	// Result = (Source * SrcBlend})BlendOp(Destination * DestBlend)に当てはめる
-	
+
 	// ブレンド・無効
 	D3D11_BLEND_DESC blend_desc{};
 	blend_desc.AlphaToCoverageEnable = FALSE; // アンチエイリアス
@@ -172,7 +171,7 @@ bool framework::initialize()
 	D3D11_RASTERIZER_DESC rasterizer_desc{};
 	rasterizer_desc.FillMode = D3D11_FILL_SOLID;
 	rasterizer_desc.CullMode = D3D11_CULL_BACK;
-	rasterizer_desc.FrontCounterClockwise = TRUE;
+	rasterizer_desc.FrontCounterClockwise = FALSE;
 	rasterizer_desc.DepthBias = 0;
 	rasterizer_desc.DepthBiasClamp = 0;
 	rasterizer_desc.SlopeScaledDepthBias = 0;
@@ -190,24 +189,24 @@ bool framework::initialize()
 	hr = device->CreateRasterizerState(&rasterizer_desc, rasterizer_states[1].GetAddressOf());
 	_ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr));
 
-	// 3:ワイヤーフレーム描画（裏面は描画しない）
+	// 2:ワイヤーフレーム描画（裏面は描画しない）
 	rasterizer_desc.FillMode = D3D11_FILL_WIREFRAME;
 	rasterizer_desc.CullMode = D3D11_CULL_NONE;
 	rasterizer_desc.AntialiasedLineEnable = TRUE;
 	hr = device->CreateRasterizerState(&rasterizer_desc, rasterizer_states[2].GetAddressOf());
 	_ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr));
 
-	// 4:ワイヤーフレーム描画（裏面も描画）
+	// 3:ワイヤーフレーム描画（裏面も描画）
 	rasterizer_desc.FillMode = D3D11_FILL_WIREFRAME;
 	rasterizer_desc.CullMode = D3D11_CULL_NONE;
 	rasterizer_desc.AntialiasedLineEnable = TRUE;
 	hr = device->CreateRasterizerState(&rasterizer_desc, rasterizer_states[3].GetAddressOf());
 	_ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr));
 
-	// 5:通常の描画
+	// 4:通常の描画
 	rasterizer_desc.FillMode = D3D11_FILL_SOLID;
 	rasterizer_desc.CullMode = D3D11_CULL_BACK;
-	rasterizer_desc.FrontCounterClockwise = FALSE;
+	rasterizer_desc.FrontCounterClockwise = TRUE;
 	hr = device->CreateRasterizerState(&rasterizer_desc, rasterizer_states[4].GetAddressOf());
 	_ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr));
 
@@ -260,6 +259,10 @@ bool framework::initialize()
 	hr = device->CreateBuffer(&buffer_desc, nullptr, constant_buffers[0].GetAddressOf());
 	_ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr));
 
+	// --- グリッド初期化フラグのみ立てておく ---
+	is_grid_initialized = true;
+
+
 	// 画像
 	sprites[0] = make_unique<sprite>(device.Get(), L".\\resources\\cyberpunk.jpg");
 	sprites[1] = make_unique<sprite>(device.Get(), L".\\resources\\player-sprites.png");
@@ -271,15 +274,16 @@ bool framework::initialize()
 
 	// 幾何プリミティブ
 	//geometric_primitives[0] = make_unique<geometric_primitive>(device.Get());
-    //geometric_primitives[1] = make_unique<geometric_primitive>(device.Get());
+	//geometric_primitives[1] = make_unique<geometric_primitive>(device.Get());
 	geometric_primitives[0] = make_unique<cube>(device.Get());
 
 	// static_meshオブジェクトを生成する
-	// static_meshes[0] = make_unique<static_mesh>(device.Get(), L".\\resources\\Rock\\Rock.obj"); // cube、torus、\\Cup\\cup.obj、\\Bison\\Bison.obj、\\Mr.Incredible\\Mr.Incredible.obj
+	//static_meshes[0] = make_unique<static_mesh>(device.Get(), L".\\resources\\zimen\\Flat Desert.obj"); // cube、torus、\\Cup\\cup.obj、\\Bison\\Bison.obj、\\Mr.Incredible\\Mr.Incredible.obj
 	// \\Mr.Incredible\\Mr.Incredible.obj
 
 	// skinned_meshオブジェクトを生成する
-	skinned_meshes[0] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\Tunnel_fbx\\tunnel.fbx",true); // \\cube.000.fbx
+	skinned_meshes[0] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\mesh_fbx\\tile.fbx", true); // \\cube.000.fbx
+	skinned_meshes[1] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\mesh_fbx\\circle.fbx", true); // ワイヤーフレームのトンネル
 
 	return true;
 }
@@ -287,219 +291,188 @@ bool framework::initialize()
 void framework::update(float elapsed_time/*Elapsed seconds from last frame*/)
 {
 	// =======================================================
-	// 1. マウス操作による視点移動（FPSカメラ）
+	// 0. モード切り替え処理 ('1'キーでカメラ操作 ⇔ 自機操作をトグル)
 	// =======================================================
-	static POINT prev_cursor_pos = { 0, 0 };
-	static bool is_first_frame = true;
-
-	POINT cursor_pos;
-	GetCursorPos(&cursor_pos);
-	ScreenToClient(hwnd, &cursor_pos);
-
-	// 初回フレームのみ前回の位置をリセット
-	if (is_first_frame)
+	bool is_key1_pressed_now = (GetAsyncKeyState('1') & 0x8000) != 0;
+	if (is_key1_pressed_now && !is_key1_pressed_prev)
 	{
-		prev_cursor_pos = cursor_pos;
-		is_first_frame = false;
+		is_camera_control_mode = !is_camera_control_mode; // モード反転
+
+		// 操作モード変更時に右ドラッグ状態を安全にリセット
+		if (is_right_daging)
+		{
+			is_right_daging = false;
+			ShowCursor(TRUE);
+		}
+	}
+	is_key1_pressed_prev = is_key1_pressed_now;
+
+	// =======================================================
+	// 1. カメラ回転・移動処理 (カメラ操作モード時のみ有効)
+	// =======================================================
+	bool right_mouse_down = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+
+	if (is_camera_control_mode)
+	{
+		// --- マウス右ドラッグでカメラ回転 ---
+		if (right_mouse_down)
+		{
+			if (!is_right_daging)
+			{
+				is_right_daging = true;
+				GetCursorPos(&last_mouse_pos);
+				ShowCursor(FALSE);
+			}
+			else
+			{
+				POINT current_pos;
+				GetCursorPos(&current_pos);
+
+				float dx = static_cast<float>(current_pos.x - last_mouse_pos.x);
+				float dy = static_cast<float>(current_pos.y - last_mouse_pos.y);
+
+				float sensitivity = 0.003f;
+				camera_yaw += dx * sensitivity;
+				camera_pitch += dy * sensitivity;
+
+				const float limit = DirectX::XM_PIDIV2 - 0.01f;
+				if (camera_pitch > limit) camera_pitch = limit;
+				if (camera_pitch < -limit) camera_pitch = -limit;
+
+				SetCursorPos(last_mouse_pos.x, last_mouse_pos.y);
+			}
+		}
+		else if (is_right_daging)
+		{
+			is_right_daging = false;
+			ShowCursor(TRUE);
+		}
 	}
 
-	float dx = static_cast<float>(cursor_pos.x - prev_cursor_pos.x);
-	float dy = static_cast<float>(cursor_pos.y - prev_cursor_pos.y);
-
-	// マウス感度
-	float sensitivity = 0.005f;
-	camera_angle_y += dx * sensitivity;  // 左右の回転
-	camera_angle_x -= dy * sensitivity;  // 上下の回転（反転して自然な動きに）
-
-	// 上下の角度制限（真上や真下を向きすぎないように）
-	if (camera_angle_x > 1.5f) camera_angle_x = 1.5f;
-	if (camera_angle_x < -1.5f) camera_angle_x = -1.5f;
-
-	prev_cursor_pos = cursor_pos;
-
-	// カメラの正面ベクトル（前方向）を計算（視点操作用）
-	DirectX::XMMATRIX R = DirectX::XMMatrixRotationRollPitchYaw(camera_angle_x, camera_angle_y, 0.0f);
-	DirectX::XMVECTOR forward = DirectX::XMVector3TransformNormal(DirectX::XMVectorSet(0, 0, 1, 0), R);
+	// カメラの回転行列・ベクトル計算
+	DirectX::XMMATRIX cam_rot_matrix = DirectX::XMMatrixRotationRollPitchYaw(camera_pitch, camera_yaw, 0.0f);
+	DirectX::XMVECTOR forward = DirectX::XMVector3TransformNormal(DirectX::XMVectorSet(0, 0, 1, 0), cam_rot_matrix);
+	DirectX::XMVECTOR right = DirectX::XMVector3TransformNormal(DirectX::XMVectorSet(1, 0, 0, 0), cam_rot_matrix);
+	DirectX::XMVECTOR up = DirectX::XMVectorSet(0, 1, 0, 0);
 
 	// =======================================================
-	// 2. キーボードによる移動ベクトルの計算（視点方向に依存しない固定方向）
+	// 2. 移動ベクトルの計算（カメラ移動 ∨ 自機Cube移動）
 	// =======================================================
-	float move_speed = 5.0f * elapsed_time;
 	DirectX::XMVECTOR move_vec = DirectX::XMVectorZero();
+	float move_speed = (is_camera_control_mode ? 10.0f : 5.0f) * elapsed_time;
 
-	// 固定方向：W/SでZ軸方向、A/DでX軸方向
-	if (GetAsyncKeyState('W') & 0x8000) move_vec = DirectX::XMVectorSubtract(move_vec, DirectX::XMVectorSet(0, 0, 1, 0));  // 前（Z-）
-	if (GetAsyncKeyState('S') & 0x8000) move_vec = DirectX::XMVectorAdd(move_vec, DirectX::XMVectorSet(0, 0, 1, 0));  // 後ろ（Z+）
-	if (GetAsyncKeyState('D') & 0x8000) move_vec = DirectX::XMVectorSubtract(move_vec, DirectX::XMVectorSet(1, 0, 0, 0));  // 右（X+）
-	if (GetAsyncKeyState('A') & 0x8000) move_vec = DirectX::XMVectorAdd(move_vec, DirectX::XMVectorSet(1, 0, 0, 0));  // 左（X-）
-
-	// 移動ベクトルを正規化して速度を掛ける
-	if (DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(move_vec)) > 0.0f)
+	if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
 	{
-		move_vec = DirectX::XMVector3Normalize(move_vec);
-		move_vec = DirectX::XMVectorScale(move_vec, move_speed);
+		move_speed *= 2.0f; // Shiftキーで加速
 	}
 
+	// WASD/EQ キー入力の取得
+	if (is_camera_control_mode)
+	{
+		// 【カメラ移動モード】右クリック中のみ WASD でカメラ位置を変更
+		if (right_mouse_down)
+		{
+			if (GetAsyncKeyState('W') & 0x8000) move_vec = DirectX::XMVectorAdd(move_vec, forward);
+			if (GetAsyncKeyState('S') & 0x8000) move_vec = DirectX::XMVectorSubtract(move_vec, forward);
+			if (GetAsyncKeyState('D') & 0x8000) move_vec = DirectX::XMVectorAdd(move_vec, right);
+			if (GetAsyncKeyState('A') & 0x8000) move_vec = DirectX::XMVectorSubtract(move_vec, right);
+			if (GetAsyncKeyState('E') & 0x8000) move_vec = DirectX::XMVectorAdd(move_vec, up);
+			if (GetAsyncKeyState('Q') & 0x8000) move_vec = DirectX::XMVectorSubtract(move_vec, up);
+		}
+
+		if (DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(move_vec)) > 0.0f)
+		{
+			move_vec = DirectX::XMVector3Normalize(move_vec);
+			move_vec = DirectX::XMVectorScale(move_vec, move_speed);
+
+			DirectX::XMVECTOR cam_pos_vec = DirectX::XMLoadFloat3(&camera_position);
+			cam_pos_vec = DirectX::XMVectorAdd(cam_pos_vec, move_vec);
+			DirectX::XMStoreFloat3(&camera_position, cam_pos_vec);
+		}
+	}
+	else
+	{
+		// 【自機(Cube)移動モード】右クリックなしで WASD による Cube（`skinned_mesh_position2`）移動
+		// カメラの平面水平方向（Y=0）を基準に前後左右移動
+		DirectX::XMVECTOR flat_forward = DirectX::XMVector3Normalize(DirectX::XMVectorSet(sinf(camera_yaw), 0.0f, cosf(camera_yaw), 0.0f));
+		DirectX::XMVECTOR flat_right = DirectX::XMVector3Normalize(DirectX::XMVectorSet(cosf(camera_yaw), 0.0f, -sinf(camera_yaw), 0.0f));
+
+		if (GetAsyncKeyState('W') & 0x8000) move_vec = DirectX::XMVectorAdd(move_vec, flat_forward);
+		if (GetAsyncKeyState('S') & 0x8000) move_vec = DirectX::XMVectorSubtract(move_vec, flat_forward);
+		if (GetAsyncKeyState('D') & 0x8000) move_vec = DirectX::XMVectorAdd(move_vec, flat_right);
+		if (GetAsyncKeyState('A') & 0x8000) move_vec = DirectX::XMVectorSubtract(move_vec, flat_right);
+
+		if (DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(move_vec)) > 0.0f)
+		{
+			move_vec = DirectX::XMVector3Normalize(move_vec);
+			move_vec = DirectX::XMVectorScale(move_vec, move_speed);
+
+			// 壁（ステージ: skinned_meshes[0]）との当たり判定・レイキャスト処理
+			DirectX::XMFLOAT3 start = skinned_mesh_position2;
+			DirectX::XMVECTOR next_pos_vec = DirectX::XMVectorAdd(DirectX::XMLoadFloat3(&start), move_vec);
+			DirectX::XMFLOAT3 end;
+			DirectX::XMStoreFloat3(&end, next_pos_vec);
+
+			DirectX::XMFLOAT3 hit_pos, hit_normal;
+			if (skinned_meshes[0] && Collision::RayCastSkinnedMesh(start, end, stage_world_matrix, skinned_meshes[0].get(), hit_pos, hit_normal))
+			{
+				// 壁スライド（壁ずり）計算
+				DirectX::XMVECTOR P = DirectX::XMLoadFloat3(&hit_pos);
+				DirectX::XMVECTOR E = DirectX::XMLoadFloat3(&end);
+				DirectX::XMVECTOR PE = DirectX::XMVectorSubtract(E, P);
+				DirectX::XMVECTOR N = DirectX::XMLoadFloat3(&hit_normal);
+
+				float margin = 0.5f;
+				DirectX::XMVECTOR A = DirectX::XMVector3Dot(DirectX::XMVectorNegate(PE), N);
+				float a = DirectX::XMVectorGetX(A) + margin;
+
+				DirectX::XMVECTOR R_vec = DirectX::XMVectorAdd(PE, DirectX::XMVectorScale(N, a));
+				DirectX::XMVECTOR Q = DirectX::XMVectorAdd(P, R_vec);
+
+				DirectX::XMStoreFloat3(&skinned_mesh_position2, Q);
+			}
+			else
+			{
+				skinned_mesh_position2 = end; // 障害物が無ければ移動
+			}
+
+			// 移動方向にあわせて自機の回転（Yaw）を更新
+			float target_angle = atan2f(DirectX::XMVectorGetX(move_vec), DirectX::XMVectorGetZ(move_vec));
+			skinned_mesh_rotation2.y = DirectX::XMConvertToDegrees(target_angle);
+		}
+	}
+
+	// カメラ注視点計算
+	DirectX::XMVECTOR cam_pos_vec = DirectX::XMLoadFloat3(&camera_position);
+	DirectX::XMVECTOR target_vec = DirectX::XMVectorAdd(cam_pos_vec, forward);
+	DirectX::XMStoreFloat3(&camera_target, target_vec);
+
 	// =======================================================
-	// ステージ（skinned_mesh）のワールド行列を更新
+	// 3. ステージのワールド行列更新
 	// =======================================================
 	const DirectX::XMFLOAT4X4 coordinate_system_transforms[]
 	{
-		{
-		    -1,0,0,0,0,
-		     1,0,0,0,0,
-		     1,0,0,0,0,
-		     1
-		}, // 左手座標系（DirectXのデフォルト）
-
-		{
-			 1,0,0,0,0,
-			 1,0,0,0,0,
-			 1,0,0,0,0,
-			 1
-		}, // 右手座標系（OpenGLのデフォルト）
-
-		{
-			-1,0,0,0,0,
-			 0,-1,0,0,1,
-			 0,0,0,0,0,
-			 1
-		}, // 左手座標系（DirectXのデフォルト）＋Y軸反転
-
-		{
-			 1,0,0,0,0,
-			 0,1,0,0,1,
-			 0,0,0,0,0,
-			 1
-		}, // 右手座標系（OpenGLのデフォルト）＋Y軸反転
+		{ -1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1 },
+		{  1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1 },
+		{ -1, 0, 0, 0,  0,-1, 0, 0,  0, 0, 0, 0,  0, 0, 0, 1 },
+		{  1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 0, 0,  0, 0, 0, 1 },
 	};
 
 	const float scale_factor = 1.0f;
 	DirectX::XMMATRIX C{
-	    DirectX::XMLoadFloat4x4(&coordinate_system_transforms[2])
+		DirectX::XMLoadFloat4x4(&coordinate_system_transforms[2])
 		* DirectX::XMMatrixScaling(scale_factor, scale_factor, scale_factor)
 	};
 
 	DirectX::XMMATRIX S4{ DirectX::XMMatrixScaling(skinned_mesh_scale.x, skinned_mesh_scale.y, skinned_mesh_scale.z) };
 	DirectX::XMMATRIX R4{ DirectX::XMMatrixRotationRollPitchYaw(
-	       DirectX::XMConvertToRadians(skinned_mesh_rotation.x),
-	       DirectX::XMConvertToRadians(skinned_mesh_rotation.y),
-	       DirectX::XMConvertToRadians(skinned_mesh_rotation.z)
+		   DirectX::XMConvertToRadians(skinned_mesh_rotation.x),
+		   DirectX::XMConvertToRadians(skinned_mesh_rotation.y),
+		   DirectX::XMConvertToRadians(skinned_mesh_rotation.z)
 	) };
+
 	DirectX::XMMATRIX T4{ DirectX::XMMatrixTranslation(skinned_mesh_position.x, skinned_mesh_position.y, skinned_mesh_position.z) };
-
 	DirectX::XMStoreFloat4x4(&stage_world_matrix, C * S4 * R4 * T4);
-
-	// =======================================================
-	// 3. 当たり判定（レイキャスト）と壁ずり処理
-	// =======================================================
-	DirectX::XMFLOAT3 start = camera_position;
-	DirectX::XMVECTOR next_pos_vec = DirectX::XMVectorAdd(DirectX::XMLoadFloat3(&start), move_vec);
-
-	DirectX::XMFLOAT3 end;
-	DirectX::XMStoreFloat3(&end, next_pos_vec);
-
-	// デバッグ用：レイ情報を保存
-	last_hit_position = start;
-	last_hit_normal = DirectX::XMFLOAT3(end.x - start.x, end.y - start.y, end.z - start.z);
-
-	// デバッグ：モデル情報をカウント
-	mesh_count = 0;
-	triangle_count = 0;
-	if (skinned_meshes[0])
-	{
-		mesh_count = static_cast<int>(skinned_meshes[0]->GetMeshes().size());
-		for (const auto& mesh : skinned_meshes[0]->GetMeshes())
-		{
-			triangle_count += static_cast<int>(mesh.cpu_indices.size() / 3);
-		}
-	}
-
-	// 移動がある場合のみ当たり判定を行う
-	if (start.x != end.x || start.y != end.y || start.z != end.z)
-	{
-		DirectX::XMFLOAT3 hit_pos, hit_normal;
-
-		// デバッグ：モデルが読み込まれているか確認
-		bool model_loaded = (skinned_meshes[0] != nullptr);
-
-		// 読み込んだ土管が skinned_meshes[0] に入っている前提
-		if (model_loaded && Collision::RayCastSkinnedMesh(start, end, stage_world_matrix, skinned_meshes[0].get(), hit_pos, hit_normal))
-		{
-			// デバッグ情報を更新
-			is_collision_detected = true;
-			last_hit_position = hit_pos;
-			last_hit_normal = hit_normal;
-
-			// ぶつかった場合の壁ずりスライド計算
-			DirectX::XMVECTOR P = DirectX::XMLoadFloat3(&hit_pos);
-			DirectX::XMVECTOR E = DirectX::XMLoadFloat3(&end);
-			DirectX::XMVECTOR PE = DirectX::XMVectorSubtract(E, P);
-			DirectX::XMVECTOR N = DirectX::XMLoadFloat3(&hit_normal);
-
-			// マージン（カメラが壁に近すぎると裏側が透けるため少し離す）
-			float margin = 0.5f;
-			DirectX::XMVECTOR A = DirectX::XMVector3Dot(DirectX::XMVectorNegate(PE), N);
-			float a = DirectX::XMVectorGetX(A) + margin;
-
-			DirectX::XMVECTOR R_vec = DirectX::XMVectorAdd(PE, DirectX::XMVectorScale(N, a));
-			DirectX::XMVECTOR Q = DirectX::XMVectorAdd(P, R_vec);
-
-			DirectX::XMStoreFloat3(&camera_position, Q);
-		}
-		else
-		{
-			// デバッグ情報をリセット
-			is_collision_detected = false;
-
-			// 衝突しなかった場合はそのまま進む
-			camera_position = end;
-		}
-	}
-
-	// 注視点をカメラ位置 + 前方向ベクトルに更新
-	DirectX::XMVECTOR target_vec = DirectX::XMVectorAdd(DirectX::XMLoadFloat3(&camera_position), forward);
-	DirectX::XMStoreFloat3(&camera_target, target_vec);
-
-
-	//// --- WASDキーによるカメラ移動処理 ---
-	//float move_speed = camera_speed * elapsed_time;
-
-	//// ラジアンに変換
-	//float yaw_rad = DirectX::XMConvertToRadians(camera_yaw);
-	//float cos_yaw = cosf(yaw_rad);
-	//float sin_yaw = sinf(yaw_rad);
-
-	//// 前後左右の移動ベクトルを計算
-	//DirectX::XMVECTOR move_vector = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-
-	//if (GetAsyncKeyState('W') & 0x8000) { // 前進
-	//	move_vector = DirectX::XMVectorAdd(move_vector, DirectX::XMVectorSet(sin_yaw, 0.0f, cos_yaw, 0.0f));
-	//}
-
-	//if (GetAsyncKeyState('S') & 0x8000) { // 後退
-	//	move_vector = DirectX::XMVectorAdd(move_vector, DirectX::XMVectorSet(-sin_yaw, 0.0f, -cos_yaw, 0.0f));
-	//}
-
-	//// 移動ベクトルを正規化してスピードを掛ける
-	//move_vector = DirectX::XMVector3Normalize(move_vector);
-	//move_vector = DirectX::XMVectorScale(move_vector, move_speed);
-
-	//// カメラ位置に反映
-	//camera_position.x += DirectX::XMVectorGetX(move_vector);
-	//camera_position.z += DirectX::XMVectorGetZ(move_vector);
-
-	//// --- A/Dキーによるオブジェクトのロール回転処理 ---
-	//if (GetAsyncKeyState('A') & 0x8000) { // Aキー：右ロール回転
-	//	skinned_mesh_rotation.z += rotate_speed * elapsed_time;
-	//}
-	//if (GetAsyncKeyState('D') & 0x8000) { // Dキー：左ロール回転
-	//	skinned_mesh_rotation.z -= rotate_speed * elapsed_time;
-	//}
-
-	//// 角度が 360 度を超えたりマイナスになったりしたときの正規化
-	//if (skinned_mesh_rotation.z > 180.0f)  skinned_mesh_rotation.z -= 360.0f;
-	//if (skinned_mesh_rotation.z < -180.0f) skinned_mesh_rotation.z += 360.0f;
 
 #ifdef USE_IMGUI
 	ImGui_ImplDX11_NewFrame();
@@ -511,7 +484,7 @@ void framework::update(float elapsed_time/*Elapsed seconds from last frame*/)
 	ImGui::Begin("ImGUI");
 
 	// 1. パイプライン・ステート設定（コンボボックス化）
-	if (ImGui::CollapsingHeader("Global States", ImGuiTreeNodeFlags_DefaultOpen))
+	if (ImGui::CollapsingHeader("Global States", 0))
 	{
 		// テクスチャフィルタ
 		const char* sampler_names[] = { "Point", "Linear", "Anisotropic" };
@@ -522,7 +495,7 @@ void framework::update(float elapsed_time/*Elapsed seconds from last frame*/)
 		// 深度ステンシルステート
 		// 0: Test_ON/Write_ON, 1: Test_ON/Write_OFF, 2: Test_OFF/Write_ON, 3: Test_OFF/Write_OFF
 		const char* depth_names[] = { "Test:ON / Write:ON", "Test:ON / Write:OFF", "Test:OFF / Write:ON", "Test:OFF / Write:OFF" };
-		if (ImGui::Combo("Depth Stencil", &Depth_index, depth_names, IM_ARRAYSIZE(depth_names))){}
+		if (ImGui::Combo("Depth Stencil", &Depth_index, depth_names, IM_ARRAYSIZE(depth_names))) {}
 		// ラスタライザステートの切り替え
 		const char* rasterizer_names[] = { "Fill","Wireframe","Wireframe(No culling)","4" };
 		ImGui::Combo("Rasterizer_states", &Rasterizer_index, rasterizer_names, IM_ARRAYSIZE(rasterizer_names));
@@ -562,7 +535,7 @@ void framework::update(float elapsed_time/*Elapsed seconds from last frame*/)
 	}
 
 	// 4. パフォーマンステスト（通常描画とバッチ描画の切り替え）
-	if (ImGui::CollapsingHeader("Performance Test", ImGuiTreeNodeFlags_DefaultOpen))
+	if (ImGui::CollapsingHeader("Performance Test", 0))
 	{
 		// チェックボックスで通常スプライトとバッチ描画を切り替える
 		ImGui::Checkbox("Use Sprite Batch", &use_batch);
@@ -619,29 +592,45 @@ void framework::update(float elapsed_time/*Elapsed seconds from last frame*/)
 		ImGui::DragFloat3("skinned_Pos", &skinned_mesh_position.x, 0.1f);
 		// 姿勢の調整（-180度～180度）0.5fはドラッグのスピード
 		ImGui::DragFloat3("skinned_Rota", &skinned_mesh_rotation.x, 0.5f, -360.0f, 360.0f);
-		// 寸法の調整（0.1倍～5.0倍）
-		ImGui::SliderFloat3("skinned_Scale", &skinned_mesh_scale.x, 0.1f, 20.0f);
+		// 寸法の調整（0.0倍～20.0倍）
+		ImGui::SliderFloat3("skinned_Scale", &skinned_mesh_scale.x, 0.0f, 20.0f);
 		// 色の調整（カラーピッカー）
 		ImGui::ColorEdit4("skinned Color", skinned_mesh_color);
 	}
 
-	// 9. カメラと当たり判定情報
-	if (ImGui::CollapsingHeader("Camera & Collision", ImGuiTreeNodeFlags_DefaultOpen))
+	// 9. skinned_mesh2オブジェクト編集
+	if (ImGui::CollapsingHeader("Skinned_mesh2", ImGuiTreeNodeFlags_DefaultOpen))
 	{
-		ImGui::Text("Camera Position: %.2f, %.2f, %.2f", camera_position.x, camera_position.y, camera_position.z);
-		ImGui::Text("Camera Angle X: %.2f, Y: %.2f", camera_angle_x, camera_angle_y);
-		ImGui::Separator();
-		ImGui::Text("Model Info: Meshes=%d, Triangles=%d", mesh_count, triangle_count);
-		ImGui::Text("Collision Detected: %s", is_collision_detected ? "YES" : "NO");
-		ImGui::Text("Ray Start: %.2f, %.2f, %.2f", last_hit_position.x, last_hit_position.y, last_hit_position.z);
-		ImGui::Text("Ray Direction: %.2f, %.2f, %.2f", last_hit_normal.x, last_hit_normal.y, last_hit_normal.z);
-		if (is_collision_detected)
+		// 位置の調整
+		ImGui::DragFloat3("skinned_Pos2", &skinned_mesh_position2.x, 0.1f);
+		// 姿勢の調整（-180度～180度）0.5fはドラッグのスピード
+		ImGui::DragFloat3("skinned_Rota2", &skinned_mesh_rotation2.x, 0.5f, -360.0f, 360.0f);
+		// 寸法の調整（0.0倍～20.0倍）
+		ImGui::SliderFloat3("skinned_Scale2", &skinned_mesh_scale2.x, 0.0f, 20.0f);
+		// 色の調整（カラーピッカー）
+		ImGui::ColorEdit4("skinned Color2", skinned_mesh_color2);
+	}
+
+	// 10. 自機(Cube)の位置・回転・スケールの調整
+	if (ImGui::CollapsingHeader("Control Mode", ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		ImGui::Text("Press '1' Key to Toggle Mode");
+		if (is_camera_control_mode)
 		{
-			ImGui::Text("Hit Position: %.2f, %.2f, %.2f", last_hit_position.x, last_hit_position.y, last_hit_position.z);
-			ImGui::Text("Hit Normal: %.2f, %.2f, %.2f", last_hit_normal.x, last_hit_normal.y, last_hit_normal.z);
+			ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "Mode: [ CAMERA CONTROL ] (R-Click + WASD)");
+		}
+		else
+		{
+			ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "Mode: [ PLAYER (CUBE) CONTROL ] (WASD)");
 		}
 	}
-	
+
+	// 11. デバッグ表示
+	if (ImGui::CollapsingHeader("Debug Views", ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		ImGui::Checkbox("Show Grid & Gizmo", &show_debug_grid);
+	}
+
 	ImGui::End();
 #endif
 }
@@ -651,7 +640,8 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	// これより上には書かない
 	HRESULT hr{ S_OK };
 
-	FLOAT color[]{ 0.2f,0.2f,0.2f,1.0f }; // 画面をクリアする
+	//FLOAT color[]{ 0.4f,0.6f,0.9f,1.0f }; // 画面をクリアする
+	FLOAT color[]{ 0.4f,0.6f,0.9f,1.0f }; 
 	immediate_context->ClearRenderTargetView(render_target_view.Get(), color);
 	immediate_context->ClearDepthStencilView(depth_stencil_view.Get(),
 		D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
@@ -673,20 +663,20 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	immediate_context->RSSetState(rasterizer_states[4].Get());
 
 	// renderメンバ関数でのspriteオブジェクトの描画方法を変更する
-	/*sprites[0]->render(immediate_context.Get(), 
+	/*sprites[0]->render(immediate_context.Get(),
 		position0.x, position0.y, 1280, 720,
-		sprite0_color.x, sprite0_color.y, 
-		sprite0_color.z, sprite0_color.w, 
+		sprite0_color.x, sprite0_color.y,
+		sprite0_color.z, sprite0_color.w,
 		sprite0_angle
 	);*/
-	/*sprites[1]->render(immediate_context.Get(), 
+	/*sprites[1]->render(immediate_context.Get(),
 		position1.x, position1.y, 240, 240,
-		sprite1_color.x, sprite1_color.y, 
-		sprite1_color.z, sprite1_color.w, 
+		sprite1_color.x, sprite1_color.y,
+		sprite1_color.z, sprite1_color.w,
 		sprite1_angle,
 		140.0f * animationNo, src_y, 140.0f, 240.0f
 	);*/
-	
+
 	float x{ 0 };
 	float y{ 0 };
 
@@ -729,10 +719,10 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 		sprite_batches[0]->end(immediate_context.Get());*/
 	}
 
-	/*sprites[2]->textout(immediate_context.Get(), 
+	/*sprites[2]->textout(immediate_context.Get(),
 		text_buffer, text_pos.x, text_pos.y,
 		text_size.x, text_size.y,
-		text_color.x, text_color.y, 
+		text_color.x, text_color.y,
 		text_color.z, text_color.w
 	);*/
 
@@ -744,27 +734,18 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 
 	// 射影行列の計算
 	float aspect_ratio{ viewport.Width / viewport.Height };
-	XMMATRIX P{ XMMatrixPerspectiveFovLH(XMConvertToRadians(60), aspect_ratio, 0.1f, 300.0f) };
+	XMMATRIX P{ XMMatrixPerspectiveFovLH(XMConvertToRadians(70), aspect_ratio, 0.1f, 300.0f) };
 
-	// --- 1人称視点用のカメラ・ビュー行列の計算 ---
+	// --- カメラ・ビュー行列の計算 ---
 	XMVECTOR eye{ XMVectorSet(camera_position.x, camera_position.y, camera_position.z, 1.0f) };
 
-	// 視線の向き（Yaw, Pitch）から前方向ベクトルを算出
-	// update関数で更新されるcamera_angle_x, camera_angle_yを使用
-	float yaw_rad = camera_angle_y;
-	float pitch_rad = camera_angle_x;
-
-	// 前方向ベクトルを計算する
-	XMVECTOR look_direction = DirectX::XMVectorSet(
-		cosf(pitch_rad) * sinf(yaw_rad),
-		sinf(pitch_rad),
-		cosf(pitch_rad) * cosf(yaw_rad),
-		0.0f
-	);
+	// update関数で計算した Pitch/Yaw から視線ベクトルを作成
+	XMMATRIX cam_rot = XMMatrixRotationRollPitchYaw(camera_pitch, camera_yaw, 0.0f);
+	XMVECTOR look_direction = XMVector3TransformNormal(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), cam_rot);
 
 	// 注視点 = カメラの位置 + 前方向ベクトル
-	XMVECTOR focus{ DirectX::XMVectorAdd(eye, look_direction) };
-	XMVECTOR up{ XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f) };    // 上方向ベクトル
+	XMVECTOR focus{ XMVectorAdd(eye, look_direction) };
+	XMVECTOR up{ XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f) };
 	XMMATRIX V{ XMMatrixLookAtLH(eye, focus, up) };
 
 	// 定数バッファにビュー・プロジェクション行列とライトの向きを転送
@@ -782,10 +763,10 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	const DirectX::XMFLOAT4X4 coordinate_system_transforms[]
 	{
 		{
-		    -1,0,0,0,0,
-		     1,0,0,0,0,
-		     1,0,0,0,0,
-		     1
+			-1,0,0,0,0,
+			 1,0,0,0,0,
+			 1,0,0,0,0,
+			 1
 		}, // 左手座標系（DirectXのデフォルト）
 
 		{
@@ -813,14 +794,15 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	// To change the units from centimeters to meters, set 'scale_factor' to 0.01.
 	const float scale_factor = 1.0f;
 	DirectX::XMMATRIX C{
-	    DirectX::XMLoadFloat4x4(&coordinate_system_transforms[2])
-		* DirectX::XMMatrixScaling(scale_factor, scale_factor, scale_factor) 
+		DirectX::XMLoadFloat4x4(&coordinate_system_transforms[2])
+		* DirectX::XMMatrixScaling(scale_factor, scale_factor, scale_factor)
 	};
 
 	// 拡大縮小（S）・回転（R）・平行移動（T）行列を計算する
 	//XMMATRIX S{ XMMatrixScaling(cube_scale.x, cube_scale.y, cube_scale.z) };
 	XMMATRIX S3{ XMMatrixScaling(static_mesh_scale.x, static_mesh_scale.y, static_mesh_scale.z) };
 	XMMATRIX S4{ XMMatrixScaling(skinned_mesh_scale.x, skinned_mesh_scale.y, skinned_mesh_scale.z) };
+	XMMATRIX S5{ XMMatrixScaling(skinned_mesh_scale2.x, skinned_mesh_scale2.y, skinned_mesh_scale2.z) };
 
 	// 回転は度数法からラジアンに変換して行列に渡す(ImGuiを使うため)
 	// XMMATRIX R{ XMMatrixRotationRollPitchYaw(0.0f, 0.0f, 0.0f) };
@@ -830,20 +812,26 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	//       XMConvertToRadians(cube_rotation.z)  // Yaw
 	//) };
 	XMMATRIX R3{ XMMatrixRotationRollPitchYaw(
-	       XMConvertToRadians(static_mesh_rotation.x), // Roll
-	       XMConvertToRadians(static_mesh_rotation.y), // Pitch
-	       XMConvertToRadians(static_mesh_rotation.z)  // Yaw
+		   XMConvertToRadians(static_mesh_rotation.x), // Roll
+		   XMConvertToRadians(static_mesh_rotation.y), // Pitch
+		   XMConvertToRadians(static_mesh_rotation.z)  // Yaw
 	) };
 	XMMATRIX R4{ XMMatrixRotationRollPitchYaw(
-	       XMConvertToRadians(skinned_mesh_rotation.x), // Roll
-	       XMConvertToRadians(skinned_mesh_rotation.y), // Pitch
-	       XMConvertToRadians(skinned_mesh_rotation.z)  // Yaw
+		   XMConvertToRadians(skinned_mesh_rotation.x), // Roll
+		   XMConvertToRadians(skinned_mesh_rotation.y), // Pitch
+		   XMConvertToRadians(skinned_mesh_rotation.z)  // Yaw
+	) };
+	XMMATRIX R5{ XMMatrixRotationRollPitchYaw(
+		   XMConvertToRadians(skinned_mesh_rotation2.x), // Roll
+		   XMConvertToRadians(skinned_mesh_rotation2.y), // Pitch
+		   XMConvertToRadians(skinned_mesh_rotation2.z)  // Yaw
 	) };
 
 	//XMMATRIX T{ XMMatrixTranslation(cube_position.x, cube_position.y, cube_position.z) };
 	//XMMATRIX T2{ XMMatrixTranslation(cube_position2.x, cube_position2.y, cube_position2.z) };
 	XMMATRIX T3{ XMMatrixTranslation(static_mesh_position.x, static_mesh_position.y, static_mesh_position.z) };
 	XMMATRIX T4{ XMMatrixTranslation(skinned_mesh_position.x, skinned_mesh_position.y, skinned_mesh_position.z) };
+	XMMATRIX T5{ XMMatrixTranslation(skinned_mesh_position2.x, skinned_mesh_position2.y, skinned_mesh_position2.z) };
 
 	// 上記３行列を合成しワールド変換行列を作成する
 	/*DirectX::XMFLOAT4X4 world;
@@ -853,10 +841,12 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	DirectX::XMFLOAT4X4 world3;
 	DirectX::XMStoreFloat4x4(&world3, S3 * R3 * T3);
 	DirectX::XMFLOAT4X4 world4;
-	DirectX::XMStoreFloat4x4(&world4, /**/ C* S4* R4* T4);
+	DirectX::XMStoreFloat4x4(&world4, /**/ S4 * R4 * T4);
+	DirectX::XMFLOAT4X4 world5;
+	DirectX::XMStoreFloat4x4(&world5, /*C**/  S5 * R5 * T5);
 
 	// geometric_primitive クラスの render メンバ関数を呼び出す
-    // ※深度テスト：オン、深度ライト：オンの深度ステンシルステートをバインドしておく
+	// ※深度テスト：オン、深度ライト：オンの深度ステンシルステートをバインドしておく
 	// 深度テストON / 深度ライトON のステート（0番）をバインドする
 	immediate_context->OMSetDepthStencilState(depth_stencil_states[0].Get(), 0);
 
@@ -865,11 +855,11 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 
 	// // ラスタライザステートの切り替え(3D)
 	immediate_context->RSSetState(rasterizer_states[Rasterizer_index].Get());
-	
+
 	// 1つ目の正立方体：ソリッド描画（左側）
 	/*geometric_primitives[0]->render(
-		immediate_context.Get(), 
-		world, 
+		immediate_context.Get(),
+		world,
 		{ cube_color[0], cube_color[1], cube_color[2], cube_color[3] }
 	);*/
 
@@ -885,7 +875,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	//-----------------------------------------------------
 	// スタティックメッシュ用(境界ボックスの可視化)
 	//-----------------------------------------------------
-	
+
 	// ① 各クラスに作ったゲッターから最小・最大座標を取得
 	//DirectX::XMFLOAT3 min_v, max_v;
 	//static_meshes[0]->get_bounding_box(min_v, max_v);
@@ -935,7 +925,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	//-----------------------------------------------------
 	// スキンメッシュ用(境界ボックスの可視化)
 	//-----------------------------------------------------
-	
+
 	DirectX::XMFLOAT3 bbox_min, bbox_max;
 	skinned_meshes[0]->get_bounding_box(bbox_min, bbox_max);
 
@@ -967,7 +957,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	// ラスタライザステートを「ソリッド」に戻す
 	immediate_context->RSSetState(rasterizer_states[0].Get());
 
-	//immediate_context->RSSetState(rasterizer_states[3].Get());
+	//immediate_context->RSSetState(rasterizer_states[1].Get());
 
 	// skinned_meshクラスのrenderメンバ関数を呼び出す
 	skinned_meshes[0]->render(
@@ -975,6 +965,129 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 		world4,
 		{ skinned_mesh_color[0], skinned_mesh_color[1], skinned_mesh_color[2], skinned_mesh_color[3] }
 	);
+
+	//// メッシュの筋（ポリゴンの枠線）を重ねて描画する
+	//if (show_debug_grid)
+	//{
+	//	// ラスタライザをワイヤーフレーム（線画）に変更
+	//	// 加算ブレンドに切り替えて「発光感（ネオン感）」を演出
+	//	immediate_context->OMSetBlendState(blend_states[1].Get(), nullptr, 0xFFFFFFFF); // 加算ブレンド (Additive)
+
+	//	// 裏面も透けて見せたい場合は rasterizer_states[3]、表面だけ見せたい場合は rasterizer_states[1]
+	//	immediate_context->RSSetState(rasterizer_states[1].Get()); // 両面ワイヤーフレーム
+	//	
+	//	// 発光させるネオンカラー（例：鮮やかなシアンブルー）
+	//    // { 0.0f, 0.8f, 1.0f, 1.0f } -> ネオンシアン
+	//    // { 1.0f, 0.0f, 0.8f, 1.0f } -> ネオンピンク/マゼンタ
+	//    // { 0.0f, 1.0f, 0.4f, 1.0f } -> サイバーグリーン
+	//	DirectX::XMFLOAT4 neon_wire_color = { 0.0f, 0.8f, 1.0f, 1.0f };
+
+	//	skinned_meshes[0]->render(
+	//		immediate_context.Get(),
+	//		world4,
+	//		neon_wire_color
+	//	);
+
+	//	// 後続の描画のためにパイプラインステートを元に戻す
+	//	immediate_context->OMSetBlendState(blend_states[0].Get(), nullptr, 0xFFFFFFFF);
+	//    immediate_context->RSSetState(rasterizer_states[0].Get());
+	//}
+
+	// 加算ブレンドに切り替えて「発光感（ネオン感）」を演出
+	//immediate_context->OMSetBlendState(blend_states[1].Get(), nullptr, 0xFFFFFFFF); // 加算ブレンド (Additive)
+
+	skinned_meshes[1]->render(
+		immediate_context.Get(),
+		world5,
+		{ 0.0f, 0.8f, 1.0f, 1.0f }
+	);
+
+	// =======================================================
+	// ▼ デバッグ表示（正方形グリッド ＆ フラットギズモ）
+	// =======================================================
+
+	if (show_debug_grid && geometric_primitives[0])
+	{
+		// 1. 深度テスト: ON、ライティング設定をカメラ正面に向けて影を消す
+		immediate_context->OMSetDepthStencilState(depth_stencil_states[0].Get(), 0);
+		immediate_context->OMSetBlendState(blend_states[0].Get(), nullptr, 0xFFFFFFFF);
+		immediate_context->RSSetState(rasterizer_states[0].Get()); // ソリッド描画
+
+		// 【修正箇所】ライトの向きをカメラの視線方向（正面）に正しく設定して影を無効化
+		scene_constans debug_light_data = data;
+		XMMATRIX cam_rot = XMMatrixRotationRollPitchYaw(camera_pitch, camera_yaw, 0.0f);
+		XMVECTOR cam_forward = XMVector3TransformNormal(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), cam_rot);
+
+		// XYZの成分だけを反転し、W成分は 0.0f に保持する
+		XMVECTOR light_dir_vec = XMVectorSet(
+			-XMVectorGetX(cam_forward),
+			-XMVectorGetY(cam_forward),
+			-XMVectorGetZ(cam_forward),
+			0.0f
+		);
+
+		XMStoreFloat4(&debug_light_data.light_direction, light_dir_vec);
+		immediate_context->UpdateSubresource(constant_buffers[0].Get(), 0, 0, &debug_light_data, 0, 0);
+
+		// ---------------------------------------------------
+		// A. XYZ軸（ギズモ）の描画 (影なし)
+		// ---------------------------------------------------
+		float axis_length = 5.0f;
+		float axis_thickness = 0.04f;
+
+		// X軸（赤）
+		XMMATRIX scale_x = XMMatrixScaling(axis_length, axis_thickness, axis_thickness);
+		XMMATRIX trans_x = XMMatrixTranslation(axis_length * 0.5f, 0.0f, 0.0f);
+		XMFLOAT4X4 world_x;
+		XMStoreFloat4x4(&world_x, scale_x * trans_x);
+		geometric_primitives[0]->render(immediate_context.Get(), world_x, XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f));
+
+		// Y軸（緑）
+		XMMATRIX scale_y = XMMatrixScaling(axis_thickness, axis_length, axis_thickness);
+		XMMATRIX trans_y = XMMatrixTranslation(0.0f, axis_length * 0.5f, 0.0f);
+		XMFLOAT4X4 world_y;
+		XMStoreFloat4x4(&world_y, scale_y * trans_y);
+		geometric_primitives[0]->render(immediate_context.Get(), world_y, XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f));
+
+		// Z軸（青）
+		XMMATRIX scale_z = XMMatrixScaling(axis_thickness, axis_thickness, axis_length);
+		XMMATRIX trans_z = XMMatrixTranslation(0.0f, 0.0f, axis_length * 0.5f);
+		XMFLOAT4X4 world_z;
+		XMStoreFloat4x4(&world_z, scale_z * trans_z);
+		geometric_primitives[0]->render(immediate_context.Get(), world_z, XMFLOAT4(0.0f, 0.3f, 1.0f, 1.0f));
+
+		// ---------------------------------------------------
+		// B. 床面正方形グリッドの描画 (20x20マス, 1m間隔)
+		// ---------------------------------------------------
+		int grid_half_size = 20;   // 片側20マス（計 40x40マス）
+		float grid_spacing = 1.0f; // 1m間隔
+		float line_thickness = 0.015f; // 格子線の太さ
+		float line_len = static_cast<float>(grid_half_size * 2);
+
+		for (int i = -grid_half_size; i <= grid_half_size; ++i)
+		{
+			// 中央軸は少し明るく、それ以外は薄いグレー
+			XMFLOAT4 line_color = (i == 0) ? XMFLOAT4(0.6f, 0.6f, 0.6f, 1.0f) : XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
+			float pos = static_cast<float>(i) * grid_spacing;
+
+			// --- Z方向の平行線（X軸方向に沿って並べる） ---
+			XMMATRIX g_scale_z = XMMatrixScaling(line_thickness, line_thickness, line_len);
+			XMMATRIX g_trans_z = XMMatrixTranslation(pos, -0.01f, 0.0f); // 床（Y=0）よりわずかに下に配置
+			XMFLOAT4X4 g_world_z;
+			XMStoreFloat4x4(&g_world_z, g_scale_z * g_trans_z);
+			geometric_primitives[0]->render(immediate_context.Get(), g_world_z, line_color);
+
+			// --- X方向の平行線（Z軸方向に沿って並べる） ---
+			XMMATRIX g_scale_x = XMMatrixScaling(line_len, line_thickness, line_thickness);
+			XMMATRIX g_trans_x = XMMatrixTranslation(0.0f, -0.01f, pos);
+			XMFLOAT4X4 g_world_x;
+			XMStoreFloat4x4(&g_world_x, g_scale_x * g_trans_x);
+			geometric_primitives[0]->render(immediate_context.Get(), g_world_x, line_color);
+		}
+
+		// 定数バッファのライティング設定を元のゲーム用に戻す
+		immediate_context->UpdateSubresource(constant_buffers[0].Get(), 0, 0, &data, 0, 0);
+	}
 
 #ifdef USE_IMGUI
 	ImGui::Render();
