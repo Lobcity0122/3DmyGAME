@@ -31,6 +31,13 @@ using namespace ImGui;
 #include "static_mesh.h"
 #include "skinned_mesh.h"
 
+#include "Scene.h"
+
+// クラスの前方宣言（循環参照防止）
+class MenuScene;
+class RacingGameScene;
+class OnlyUpGameScene;
+
 #define SCREEN_WIDTH 1280
 #define SCREEN_HEIGHT 720
 #define FULLSCREEN FALSE
@@ -100,6 +107,12 @@ public:
 	ComPtr<ID3D11VertexShader> debug_vs;
 	ComPtr<ID3D11PixelShader> debug_ps;
 	ComPtr<ID3D11InputLayout> debug_input_layout;
+
+	// シーン管理変数
+	std::unique_ptr<Scene> current_scene;
+	SceneType requested_scene_type = SceneType::RACING; // 初期シーンを RACING に設定してみる
+
+	void change_scene(SceneType new_scene_type);
 
 	// =======================================================
 	// ▼ 追加：カメラ（自機）とステージ制御用の変数

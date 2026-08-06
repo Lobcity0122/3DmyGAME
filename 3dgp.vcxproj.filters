@@ -70,6 +70,15 @@
     <ClCompile Include="Collision.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="Player.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="CameraController.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="RacingGameScene.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
@@ -127,6 +136,18 @@
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="Collision.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="VehicleStatus.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="Player.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="CameraController.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="RacingGameScene.h">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>

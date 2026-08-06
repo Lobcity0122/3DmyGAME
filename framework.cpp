@@ -1,7 +1,7 @@
 ﻿#include "framework.h"
 #include "shader.h"
 #include "Collision.h"
-
+#include "RacingGameScene.h"
 
 using namespace DirectX;
 
@@ -286,11 +286,26 @@ bool framework::initialize()
 	skinned_meshes[0] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\desktop\\desktop.fbx", true);
 	skinned_meshes[1] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\cube.000.fbx", true); 
 
+	// 初期シーンの起動
+	change_scene(SceneType::RACING);
+
 	return true;
 }
 
 void framework::update(float elapsed_time/*Elapsed seconds from last frame*/)
 {
+	// シーン切り替え要求チェック
+	if (current_scene && current_scene->get_type() != requested_scene_type)
+	{
+		change_scene(requested_scene_type);
+	}
+
+	// 現在のシーンの更新
+	if (current_scene)
+	{
+		current_scene->update(elapsed_time);
+	}
+
 	// =======================================================
 	// 0. モード切り替え処理 ('1'キーでカメラ操作 ⇔ 自機操作をトグル)
 	// =======================================================
@@ -636,6 +651,30 @@ void framework::update(float elapsed_time/*Elapsed seconds from last frame*/)
 #endif
 }
 
+// シーン切り替え処理
+void framework::change_scene(SceneType new_scene_type)
+{
+	if (current_scene)
+	{
+		current_scene->uninitialize();
+		current_scene.reset();
+	}
+
+	switch (new_scene_type)
+	{
+	case SceneType::RACING:
+		current_scene = std::make_unique<RacingGameScene>();
+		break;
+		// 他のシーンがあれば追加
+	}
+
+	if (current_scene)
+	{
+		current_scene->initialize(device.Get());
+		requested_scene_type = new_scene_type;
+	}
+}
+
 void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 {
 	// これより上には書かない
@@ -662,6 +701,12 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 
 	// ラスタライザステートの切り替え(2D)
 	immediate_context->RSSetState(rasterizer_states[4].Get());
+
+	// 現在のシーンの描画（ImGui 描画より前に呼ぶ）
+	if (current_scene)
+	{
+		current_scene->render(immediate_context.Get(), elapsed_time);
+	}
 
 	// renderメンバ関数でのspriteオブジェクトの描画方法を変更する
 	/*sprites[0]->render(immediate_context.Get(),
