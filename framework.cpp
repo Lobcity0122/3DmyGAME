@@ -278,12 +278,12 @@ bool framework::initialize()
 	geometric_primitives[0] = make_unique<cube>(device.Get());
 
 	// static_meshオブジェクトを生成する
-	//static_meshes[0] = make_unique<static_mesh>(device.Get(), L".\\resources\\zimen\\Flat Desert.obj"); // cube、torus、\\Cup\\cup.obj、\\Bison\\Bison.obj、\\Mr.Incredible\\Mr.Incredible.obj
+	//static_meshes[0] = make_unique<static_mesh>(device.Get(), L".\\resources\\hub_fbx\\hub.obj"); // cube、torus、\\Cup\\cup.obj、\\Bison\\Bison.obj、\\Mr.Incredible\\Mr.Incredible.obj
 	// \\Mr.Incredible\\Mr.Incredible.obj
 
 	// skinned_meshオブジェクトを生成する
-	skinned_meshes[0] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\mesh_fbx\\tile.fbx", true); // \\cube.000.fbx
-	skinned_meshes[1] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\mesh_fbx\\circle.fbx", true); // ワイヤーフレームのトンネル
+	skinned_meshes[0] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\desktop\\desktop.fbx", true);
+	skinned_meshes[1] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\cube.000.fbx", true); 
 
 	return true;
 }
@@ -996,11 +996,13 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 	// 加算ブレンドに切り替えて「発光感（ネオン感）」を演出
 	//immediate_context->OMSetBlendState(blend_states[1].Get(), nullptr, 0xFFFFFFFF); // 加算ブレンド (Additive)
 
-	skinned_meshes[1]->render(
+	//immediate_context->RSSetState(rasterizer_states[4].Get());
+
+	/*skinned_meshes[1]->render(
 		immediate_context.Get(),
 		world5,
-		{ 0.0f, 0.8f, 1.0f, 1.0f }
-	);
+		{ 1.0f, 1.0f, 1.0f, 1.0f }
+	);*/
 
 	// =======================================================
 	// ▼ デバッグ表示（正方形グリッド ＆ フラットギズモ）
@@ -1059,7 +1061,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 		// ---------------------------------------------------
 		// B. 床面正方形グリッドの描画 (20x20マス, 1m間隔)
 		// ---------------------------------------------------
-		int grid_half_size = 20;   // 片側20マス（計 40x40マス）
+		int grid_half_size = 10;   // 片側10マス（計 20x20マス）
 		float grid_spacing = 1.0f; // 1m間隔
 		float line_thickness = 0.015f; // 格子線の太さ
 		float line_len = static_cast<float>(grid_half_size * 2);
@@ -1067,7 +1069,7 @@ void framework::render(float elapsed_time/*Elapsed seconds from last frame*/)
 		for (int i = -grid_half_size; i <= grid_half_size; ++i)
 		{
 			// 中央軸は少し明るく、それ以外は薄いグレー
-			XMFLOAT4 line_color = (i == 0) ? XMFLOAT4(0.6f, 0.6f, 0.6f, 1.0f) : XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
+			XMFLOAT4 line_color = (i == 0) ? XMFLOAT4(0.6f, 0.6f, 0.6f, 0.5f) : XMFLOAT4(0.3f, 0.3f, 0.3f, 0.5f); // 0.3f, 0.3f, 0.3f, 1.0f
 			float pos = static_cast<float>(i) * grid_spacing;
 
 			// --- Z方向の平行線（X軸方向に沿って並べる） ---

@@ -1,10 +1,10 @@
-#include "Collision.h"
+ï»¿#include "Collision.h"
 #include <DirectXCollision.h>
 #include <cfloat>
 
 namespace Collision
 {
-	// OŠpŒ`‚É‘Î‚·‚éƒŒƒCƒLƒƒƒXƒg”»’èŠÖ”
+	// ä¸‰è§’å½¢ã«å¯¾ã™ã‚‹ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆåˆ¤å®šé–¢æ•°
     bool RayCastTriangle(
         const DirectX::XMFLOAT3& start,
         const DirectX::XMFLOAT3& end,
@@ -28,17 +28,17 @@ namespace Collision
         XMVECTOR C = XMLoadFloat3(&vertexC);
 
         float hitDist = 0.0f;
-        // DirectXCollision ‚ÌŒğ·”»’è
+        // DirectXCollision ã®äº¤å·®åˆ¤å®š
         if (TriangleTests::Intersects(Start, Direction, A, B, C, hitDist))
         {
-            // ˆÚ“®ƒŒƒC‚Ì”ÍˆÍ“àidistanceˆÈ“àj‚ÅÕ“Ë‚µ‚Ä‚¢‚é‚©
+            // ç§»å‹•ãƒ¬ã‚¤ã®ç¯„å›²å†…ï¼ˆdistanceä»¥å†…ï¼‰ã§è¡çªã—ã¦ã„ã‚‹ã‹
             if (hitDist <= distance)
             {
-                // Õ“ËˆÊ’u‚ÌZo
+                // è¡çªä½ç½®ã®ç®—å‡º
                 XMVECTOR HitPos = XMVectorAdd(Start, XMVectorScale(Direction, hitDist));
                 XMStoreFloat3(&hitPosition, HitPos);
 
-                // OŠpŒ`‚Ì–@üƒxƒNƒgƒ‹‚ÌZo
+                // ä¸‰è§’å½¢ã®æ³•ç·šãƒ™ã‚¯ãƒˆãƒ«ã®ç®—å‡º
                 XMVECTOR AB = XMVectorSubtract(B, A);
                 XMVECTOR BC = XMVectorSubtract(C, B);
                 XMVECTOR N = XMVector3Normalize(XMVector3Cross(AB, BC));
@@ -50,7 +50,7 @@ namespace Collision
         return false;
     }
 
-	// skinned_mesh ‚É‘Î‚·‚éƒŒƒCƒLƒƒƒXƒg”»’èŠÖ”
+	// skinned_mesh ã«å¯¾ã™ã‚‹ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆåˆ¤å®šé–¢æ•°
     bool RayCastSkinnedMesh(
         const DirectX::XMFLOAT3& start,
         const DirectX::XMFLOAT3& end,
@@ -66,23 +66,23 @@ namespace Collision
         DirectX::XMFLOAT3 tempHitPos, tempHitNormal;
         DirectX::XMVECTOR S = DirectX::XMLoadFloat3(&start);
 
-        // ƒ‚ƒfƒ‹‘S‘Ì‚Ìƒ[ƒ‹ƒhs—ñ
+        // ãƒ¢ãƒ‡ãƒ«å…¨ä½“ã®ãƒ¯ãƒ¼ãƒ«ãƒ‰è¡Œåˆ—
         DirectX::XMMATRIX W = DirectX::XMLoadFloat4x4(&worldMatrix);
 
-        // 1. skinned_mesh ‚ª‚Â‚·‚×‚Ä‚ÌƒƒbƒVƒ…iƒp[ƒcj‚ğƒ‹[ƒv
+        // 1. skinned_mesh ãŒæŒã¤ã™ã¹ã¦ã®ãƒ¡ãƒƒã‚·ãƒ¥ï¼ˆãƒ‘ãƒ¼ãƒ„ï¼‰ã‚’ãƒ«ãƒ¼ãƒ—
         for (const auto& mesh : model->GetMeshes())
         {
-            // 2. ƒ[ƒ‹ƒhs—ñ‚Ì‚İ‚ğg—pidefault_global_transform‚ğ–³‹j
+            // 2. ãƒ¯ãƒ¼ãƒ«ãƒ‰è¡Œåˆ—ã®ã¿ã‚’ä½¿ç”¨ï¼ˆdefault_global_transformã‚’ç„¡è¦–ï¼‰
             DirectX::XMMATRIX finalTransform = W;
 
-            // 3. ƒƒbƒVƒ…“à‚Ì‚·‚×‚Ä‚Ìƒ|ƒŠƒSƒ“iOŠpŒ`j‚ğƒ‹[ƒv
+            // 3. ãƒ¡ãƒƒã‚·ãƒ¥å†…ã®ã™ã¹ã¦ã®ãƒãƒªã‚´ãƒ³ï¼ˆä¸‰è§’å½¢ï¼‰ã‚’ãƒ«ãƒ¼ãƒ—
             for (size_t i = 0; i < mesh.cpu_indices.size(); i += 3)
             {
                 DirectX::XMVECTOR p0 = DirectX::XMLoadFloat3(&mesh.cpu_vertices[mesh.cpu_indices[i]].position);
                 DirectX::XMVECTOR p1 = DirectX::XMLoadFloat3(&mesh.cpu_vertices[mesh.cpu_indices[i + 1]].position);
                 DirectX::XMVECTOR p2 = DirectX::XMLoadFloat3(&mesh.cpu_vertices[mesh.cpu_indices[i + 2]].position);
 
-                // ƒ[ƒ‹ƒh‹óŠÔ‚ÌÀ•W‚É•ÏŠ·
+                // ãƒ¯ãƒ¼ãƒ«ãƒ‰ç©ºé–“ã®åº§æ¨™ã«å¤‰æ›
                 p0 = DirectX::XMVector3TransformCoord(p0, finalTransform);
                 p1 = DirectX::XMVector3TransformCoord(p1, finalTransform);
                 p2 = DirectX::XMVector3TransformCoord(p2, finalTransform);
@@ -92,15 +92,15 @@ namespace Collision
                 DirectX::XMStoreFloat3(&v1, p1);
                 DirectX::XMStoreFloat3(&v2, p2);
 
-                // OŠpŒ`‚Æ‚ÌƒŒƒCƒLƒƒƒXƒg”»’è
+                // ä¸‰è§’å½¢ã¨ã®ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆåˆ¤å®š
                 if (RayCastTriangle(start, end, v0, v1, v2, tempHitPos, tempHitNormal))
                 {
-                    // Œğ“_‚Ü‚Å‚Ì‹——£‚ğ‘ª‚èAˆê”Ô‹ß‚¢‚à‚Ì‚ğ‹L˜^
+                    // äº¤ç‚¹ã¾ã§ã®è·é›¢ã‚’æ¸¬ã‚Šã€ä¸€ç•ªè¿‘ã„ã‚‚ã®ã‚’è¨˜éŒ²
                     DirectX::XMVECTOR P = DirectX::XMLoadFloat3(&tempHitPos);
                     float dist = DirectX::XMVectorGetX(DirectX::XMVector3Length(DirectX::XMVectorSubtract(P, S)));
 
 
-					// ˆê”Ô‹ß‚¢Œğ“_‚ğXV
+					// ä¸€ç•ªè¿‘ã„äº¤ç‚¹ã‚’æ›´æ–°
                     if (dist < closestDistance)
                     {
                         closestDistance = dist;

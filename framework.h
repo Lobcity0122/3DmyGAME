@@ -195,22 +195,22 @@ public:
 
 	DirectX::XMFLOAT3 static_mesh_rotation{ 0.0f,0.0f,0.0f };
 
-	DirectX::XMFLOAT3 static_mesh_scale{ 1.0f,1.0f,1.0f };
+	DirectX::XMFLOAT3 static_mesh_scale{ 0.1f,0.1f,0.1f };
 
 	float static_mesh_color[4] = { 1.0f,1.0f,1.0f,1.0f };
 
 	// [skinned_mesh用パラメータ]
 	DirectX::XMFLOAT3 skinned_mesh_position{ 0.0f,0.0f,0.0f };
 
-	DirectX::XMFLOAT3 skinned_mesh_rotation{ 0.0f,0.0f,0.0f };
+	DirectX::XMFLOAT3 skinned_mesh_rotation{ 0.0f,180.0f,0.0f };
 
-	DirectX::XMFLOAT3 skinned_mesh_scale{ 0.25f,0.25f,0.25f };
+	DirectX::XMFLOAT3 skinned_mesh_scale{ 0.1f,0.1f,0.1f };
 
 	DirectX::XMFLOAT3 skinned_mesh_position2{ 0.0f,0.0f,0.0f };
 
 	DirectX::XMFLOAT3 skinned_mesh_rotation2{ 0.0f,0.0f,0.0f };
 
-	DirectX::XMFLOAT3 skinned_mesh_scale2{ 0.25f,0.25f,0.25f };
+	DirectX::XMFLOAT3 skinned_mesh_scale2{ 1.0f,1.0f,1.0f };
 
 	float skinned_mesh_color[4] = { 1.0f, 1.0f, 1.0f, 1.0f }; // 0.02f, 0.02f, 0.05f, 1.0f
 
