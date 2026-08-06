@@ -2,6 +2,7 @@
 #include "shader.h"
 #include "Collision.h"
 
+
 using namespace DirectX;
 
 framework::framework(HWND hwnd) : hwnd(hwnd)
