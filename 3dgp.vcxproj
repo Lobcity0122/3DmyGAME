@@ -225,6 +225,7 @@
     <ClInclude Include="misc.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="RacingGameScene.h" />
+    <ClInclude Include="Scene.h" />
     <ClInclude Include="shader.h" />
     <ClInclude Include="skinned_mesh.h" />
     <ClInclude Include="sprite.h" />

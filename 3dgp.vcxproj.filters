@@ -150,6 +150,9 @@
     <ClInclude Include="RacingGameScene.h">
       <Filter>Headers</Filter>
     </ClInclude>
+    <ClInclude Include="Scene.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="sprite.hlsli">
