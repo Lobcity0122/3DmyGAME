@@ -10,6 +10,9 @@
 //   row_major float4x4 view_projection;// Offset:    0 Size:    64 [unused]
 //   float4 light_direction;            // Offset:   64 Size:    16
 //   float4 camera_position;            // Offset:   80 Size:    16
+//   float4 light_position_range;       // Offset:   96 Size:    16
+//   float4 light_color_intensity;      // Offset:  112 Size:    16
+//   float4 render_options;             // Offset:  128 Size:    16
 //
 // }
 //
@@ -45,7 +48,7 @@
 //
 ps_5_0
 dcl_globalFlags refactoringAllowed | skipOptimization
-dcl_constantbuffer CB1[6], immediateIndexed
+dcl_constantbuffer CB1[9], immediateIndexed
 dcl_sampler s1, mode_default
 dcl_sampler s2, mode_default
 dcl_resource_texture2d (float,float,float,float) t0
@@ -71,16 +74,28 @@ sample_indexable(texture2d)(float,float,float,float) r0.xyzw, v2.xyxx, t0.xyzw, 
 #line 17
 mov r0.w, r0.w  // r0.w <- alpha
 
-#line 18
+#line 20
+lt r1.x, l(0.500000), cb1[8].y
+if_nz r1.x
+
+#line 22
+  mul o0.xyz, r0.xyzx, v1.xyzx
+  mul o0.w, r0.w, v1.w
+  ret 
+
+#line 23
+endif 
+
+#line 25
 dp3 r1.x, v4.xyzx, v4.xyzx
 rsq r1.x, r1.x
 mul r1.xyz, r1.xxxx, v4.xyzx  // r1.x <- N.x; r1.y <- N.y; r1.z <- N.z
 
-#line 20
+#line 27
 itof r2.xy, l(0, 0, 0, 0)  // r2.x <- T.y; r2.y <- T.z
 mov r2.z, l(1.000100)  // r2.z <- T.x
 
-#line 21
+#line 28
 mul r3.xyz, r1.yzxy, r2.yzxy
 mul r2.xyz, r1.zxyz, r2.xyzx
 mov r2.xyz, -r2.xyzx
@@ -89,7 +104,7 @@ dp3 r1.w, r2.xyzx, r2.xyzx
 rsq r1.w, r1.w
 mul r2.xyz, r1.wwww, r2.xyzx  // r2.x <- B.x; r2.y <- B.y; r2.z <- B.z
 
-#line 22
+#line 29
 mul r3.xyz, r1.zxyz, r2.yzxy
 mul r4.xyz, r1.yzxy, r2.zxyz
 mov r4.xyz, -r4.xyzx
@@ -98,16 +113,16 @@ dp3 r1.w, r3.xyzx, r3.xyzx
 rsq r1.w, r1.w
 mul r3.xyz, r1.wwww, r3.xyzx  // r3.x <- T.x; r3.y <- T.y; r3.z <- T.z
 
-#line 24
+#line 31
 sample_indexable(texture2d)(float,float,float,float) r4.xyz, v2.xyxx, t1.xyzw, s1
 mov r4.xyz, r4.xyzx  // r4.x <- normal.x; r4.y <- normal.y; r4.z <- normal.z
 
-#line 25
+#line 32
 mul r4.xyz, r4.xyzx, l(2.000000, 2.000000, 2.000000, 0.000000)
 mov r5.xyz, l(-1.000000,-1.000000,-1.000000,-0.000000)
 add r4.xyz, r4.xyzx, r5.xyzx
 
-#line 27
+#line 34
 mul r3.xyz, r3.xyzx, r4.xxxx
 mul r2.xyz, r2.xyzx, r4.yyyy
 add r2.xyz, r2.xyzx, r3.xyzx
@@ -117,40 +132,79 @@ dp3 r1.w, r1.xyzx, r1.xyzx
 rsq r1.w, r1.w
 mul r1.xyz, r1.wwww, r1.xyzx  // r1.x <- N.x; r1.y <- N.y; r1.z <- N.z
 
-#line 29
-mov r2.xyz, -cb1[4].xyzx
-dp3 r1.w, r2.xyzx, r2.xyzx
-rsq r1.w, r1.w
-mul r2.xyz, r1.wwww, r2.xyzx  // r2.x <- L.x; r2.y <- L.y; r2.z <- L.z
+#line 37
+mov r1.w, l(1.000000)  // r1.w <- attenuation
 
-#line 30
-itof r1.w, l(0)
+#line 38
+lt r2.x, l(0.500000), cb1[8].x
+if_nz r2.x
+
+#line 40
+  mov r2.xyz, -v3.xyzx
+  add r2.xyz, r2.xyzx, cb1[6].xyzx  // r2.x <- to_light.x; r2.y <- to_light.y; r2.z <- to_light.z
+
+#line 41
+  dp3 r2.w, r2.xyzx, r2.xyzx
+  sqrt r2.w, r2.w  // r2.w <- distance_to_light
+
+#line 42
+  max r3.x, r2.w, l(0.000100)
+  div r2.xyz, r2.xyzx, r3.xxxx  // r2.x <- L.x; r2.y <- L.y; r2.z <- L.z
+
+#line 43
+  max r3.x, cb1[6].w, l(0.000100)
+  div r2.w, r2.w, r3.x
+  mov r2.w, -r2.w
+  add r2.w, r2.w, l(1.000000)
+  max r2.w, r2.w, l(0.000000)
+  min r2.w, r2.w, l(1.000000)  // r2.w <- attenuation
+
+#line 44
+  mul r1.w, r2.w, r2.w  // r1.w <- attenuation
+
+#line 45
+else 
+
+#line 48
+  mov r3.xyz, -cb1[4].xyzx
+  dp3 r2.w, r3.xyzx, r3.xyzx
+  rsq r2.w, r2.w
+  mul r2.xyz, r2.wwww, r3.xyzx  // r2.x <- L.x; r2.y <- L.y; r2.z <- L.z
+
+#line 49
+endif 
+
+#line 51
 dp3 r2.w, r1.xyzx, r2.xyzx
-max r1.w, r1.w, r2.w
-mul r3.xyz, r0.xyzx, r1.wwww  // r3.x <- diffuse.x; r3.y <- diffuse.y; r3.z <- diffuse.z
+max r2.w, r2.w, l(0.050000)
+mul r3.xyz, r0.xyzx, r2.wwww
+mul r3.xyz, r1.wwww, r3.xyzx
+mul r3.xyz, r3.xyzx, cb1[7].xyzx
+mul r3.xyz, r3.xyzx, cb1[7].wwww  // r3.x <- diffuse.x; r3.y <- diffuse.y; r3.z <- diffuse.z
 
-#line 32
+#line 53
 mov r4.xyz, -v3.xyzx
 add r4.xyz, r4.xyzx, cb1[5].xyzx
-dp3 r1.w, r4.xyzx, r4.xyzx
-rsq r1.w, r1.w
-mul r4.xyz, r1.wwww, r4.xyzx  // r4.x <- V.x; r4.y <- V.y; r4.z <- V.z
-
-#line 33
-itof r1.w, l(0)
-add r2.xyz, r2.xyzx, r4.xyzx
-dp3 r2.w, r2.xyzx, r2.xyzx
+dp3 r2.w, r4.xyzx, r4.xyzx
 rsq r2.w, r2.w
-mul r2.xyz, r2.wwww, r2.xyzx
+mul r4.xyz, r2.wwww, r4.xyzx  // r4.x <- V.x; r4.y <- V.y; r4.z <- V.z
+
+#line 54
+itof r2.w, l(0)
+add r2.xyz, r2.xyzx, r4.xyzx
+dp3 r3.w, r2.xyzx, r2.xyzx
+rsq r3.w, r3.w
+mul r2.xyz, r2.xyzx, r3.wwww
 dp3 r1.x, r1.xyzx, r2.xyzx
-max r1.x, r1.x, r1.w
+max r1.x, r1.x, r2.w
 itof r1.y, l(128)
 log r1.x, r1.x
 mul r1.x, r1.x, r1.y
 exp r1.xyz, r1.xxxx  // r1.x <- specular.x; r1.y <- specular.y; r1.z <- specular.z
 
-#line 37
+#line 58
+mul r1.xyz, r1.wwww, r1.xyzx
 add r0.xyz, r1.xyzx, r3.xyzx
-mul o0.xyzw, r0.xyzw, v1.xyzw
+mul o0.xyzw, r0.xyzw, v1.xyzw  // o0.x <- <main return value>.x; o0.y <- <main return value>.y; o0.z <- <main return value>.z; o0.w <- <main return value>.w
 ret 
-// Approximately 61 instruction slots used
+// Approximately 88 instruction slots used

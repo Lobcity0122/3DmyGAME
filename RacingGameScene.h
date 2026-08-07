@@ -25,6 +25,7 @@ private:
 
 	// 2つの独立したモデル読み込み用パス。ここに並べておくことで、違いや使い方が一目で比較できる。
 	std::unique_ptr<static_mesh> car_mesh;          // OBJ（静的メッシュ：車など）
+	std::unique_ptr<static_mesh> stage_mesh;        // OBJ（静的メッシュ：コース）
 	std::unique_ptr<skinned_mesh> character_mesh;   // FBX（スキンメッシュ：キャラなど）
 
 	// シェーダーレジスタ b1: シーン内の全モデルで共有されるデータ。
@@ -34,8 +35,25 @@ private:
 		DirectX::XMFLOAT4X4 view_projection;
 		DirectX::XMFLOAT4 light_direction;
 		DirectX::XMFLOAT4 camera_position;
+		DirectX::XMFLOAT4 light_position_range;
+		DirectX::XMFLOAT4 light_color_intensity;
+		DirectX::XMFLOAT4 render_options;
 	};
+
+	// Values exposed by the ImGui debug window. They are copied into SceneConstants each frame.
+	struct LightSettings
+	{
+		DirectX::XMFLOAT3 direction{ 0.0f, 1.0f, 1.0f };
+		DirectX::XMFLOAT3 position{ 0.0f, 8.0f, 0.0f };
+		DirectX::XMFLOAT3 color{ 1.0f, 1.0f, 1.0f };
+		float range = 30.0f;
+		float intensity = 1.0f;
+		bool use_point_light = true;
+		bool unlit_texture_check = false;
+	};
+	LightSettings light_settings;
 	Microsoft::WRL::ComPtr<ID3D11Buffer> scene_constant_buffer;
+	DirectX::XMFLOAT4X4 stage_world{};
 	DirectX::XMFLOAT4X4 character_world{};
 	float total_time = 0.0f;
 

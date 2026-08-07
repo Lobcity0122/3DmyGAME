@@ -13,6 +13,7 @@ bool RacingGameScene::initialize(ID3D11Device* device)
 	player->initialize();
 	camera_controller = std::make_unique<CameraController>();
 	car_mesh = std::make_unique<static_mesh>(device, L".\\resources\\car\\123.obj");
+	stage_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\map_ydh\\scene.obj");
 	character_mesh = std::make_unique<skinned_mesh>(device, ".\\resources\\cube.000.fbx", true);
 
 	// 共有の b1 定数バッファを1度だけ生成。中身は毎フレーム更新
@@ -21,6 +22,9 @@ bool RacingGameScene::initialize(ID3D11Device* device)
 	buffer_desc.Usage = D3D11_USAGE_DEFAULT;
 	buffer_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	if (FAILED(device->CreateBuffer(&buffer_desc, nullptr, scene_constant_buffer.GetAddressOf()))) return false;
+
+	// The stage coordinates are already centered near (0, 0, 0), so it needs no extra transform.
+	XMStoreFloat4x4(&stage_world, XMMatrixIdentity());
 
 	// OBJの車とFBXを同時に確認できるように、FBXの位置をずらします。
 	XMStoreFloat4x4(&character_world, XMMatrixTranslation(4.0f, 0.0f, 4.0f));
@@ -61,9 +65,16 @@ void RacingGameScene::update_scene_constants(ID3D11DeviceContext* immediate_cont
 
 	SceneConstants constants{};
 	XMStoreFloat4x4(&constants.view_projection, view * projection);
-	constants.light_direction = XMFLOAT4(0.0f, 1.0f, 1.0f, 0.0f);
+	constants.light_direction = XMFLOAT4(light_settings.direction.x, light_settings.direction.y, light_settings.direction.z, 0.0f);
 	const XMFLOAT3& eye = camera_controller->get_eye();
 	constants.camera_position = XMFLOAT4(eye.x, eye.y, eye.z, 1.0f);
+	constants.light_position_range = XMFLOAT4(
+		light_settings.position.x, light_settings.position.y, light_settings.position.z, light_settings.range);
+	constants.light_color_intensity = XMFLOAT4(
+		light_settings.color.x, light_settings.color.y, light_settings.color.z, light_settings.intensity);
+	constants.render_options = XMFLOAT4(
+		light_settings.use_point_light ? 1.0f : 0.0f,
+		light_settings.unlit_texture_check ? 1.0f : 0.0f, 0.0f, 0.0f);
 
 	// static_mesh と skinned_mesh の両シェーダーがこの b1 定数バッファを参照する
 	immediate_context->UpdateSubresource(scene_constant_buffer.Get(), 0, nullptr, &constants, 0, 0);
@@ -74,6 +85,8 @@ void RacingGameScene::update_scene_constants(ID3D11DeviceContext* immediate_cont
 void RacingGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 {
 	// 各モデルが自身のシェーダー、ジオメトリ、テクスチャ、および b0（オブジェクト固有の定数バッファ）をバインドして描画
+	// Draw the course first, then draw the moving car on top of it using the depth buffer.
+	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1));
 	car_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1));
 	character_mesh->render(immediate_context, character_world, XMFLOAT4(1, 1, 1, 1));
 }
@@ -94,6 +107,27 @@ void RacingGameScene::draw_hud()
 	const float seconds = std::fmod(total_time, 60.0f);
 	ImGui::Text("TIME: %02d:%05.2f", minutes, seconds);
 	ImGui::End();
+
+	// This window edits the values that will be copied to the b1 scene constant buffer next frame.
+	ImGui::SetNextWindowPos(ImVec2(20, 200), ImGuiCond_Once);
+	ImGui::SetNextWindowSize(ImVec2(360, 0), ImGuiCond_Once);
+	ImGui::Begin("Lighting / Texture Debug");
+	ImGui::Checkbox("Use point light", &light_settings.use_point_light);
+	if (light_settings.use_point_light)
+	{
+		ImGui::DragFloat3("Light position", &light_settings.position.x, 0.1f);
+		ImGui::SliderFloat("Light range", &light_settings.range, 1.0f, 100.0f);
+	}
+	else
+	{
+		ImGui::DragFloat3("Light direction", &light_settings.direction.x, 0.05f, -1.0f, 1.0f);
+	}
+	ImGui::ColorEdit3("Light color", &light_settings.color.x);
+	ImGui::SliderFloat("Intensity", &light_settings.intensity, 0.0f, 5.0f);
+	ImGui::Separator();
+	ImGui::Checkbox("Unlit texture check", &light_settings.unlit_texture_check);
+	ImGui::TextWrapped("Enable this to view texture colors without lighting. White or gray areas may use a dummy texture.");
+	ImGui::End();
 #endif
 }
 
@@ -101,6 +135,7 @@ void RacingGameScene::uninitialize()
 {
 	// framework が管理している Direct3D デバイスが破棄される前に、GPUリソースを使うオブジェクトを解放
 	car_mesh.reset();
+	stage_mesh.reset();
 	character_mesh.reset();
 	scene_constant_buffer.Reset();
 	player.reset();

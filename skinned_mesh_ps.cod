@@ -10,6 +10,9 @@
 //   row_major float4x4 view_projection;// Offset:    0 Size:    64 [unused]
 //   float4 light_direction;            // Offset:   64 Size:    16
 //   float4 camera_position;            // Offset:   80 Size:    16 [unused]
+//   float4 light_position_range;       // Offset:   96 Size:    16
+//   float4 light_color_intensity;      // Offset:  112 Size:    16
+//   float4 render_options;             // Offset:  128 Size:    16
 //
 // }
 //
@@ -29,7 +32,7 @@
 // Name                 Index   Mask Register SysValue  Format   Used
 // -------------------- ----- ------ -------- -------- ------- ------
 // SV_POSITION              0   xyzw        0      POS   float       
-// POSITION                 0   xyzw        1     NONE   float       
+// POSITION                 0   xyzw        1     NONE   float   xyz 
 // NORMAL                   0   xyzw        2     NONE   float   xyz 
 // TEXCOORD                 0   xy          3     NONE   float   xy  
 // COLOR                    0   xyzw        4     NONE   float   xyzw
@@ -43,14 +46,15 @@
 //
 ps_5_0
 dcl_globalFlags refactoringAllowed | skipOptimization
-dcl_constantbuffer CB1[5], immediateIndexed
+dcl_constantbuffer CB1[9], immediateIndexed
 dcl_sampler s2, mode_default
 dcl_resource_texture2d (float,float,float,float) t0
+dcl_input_ps linear v1.xyz
 dcl_input_ps linear v2.xyz
 dcl_input_ps linear v3.xy
 dcl_input_ps linear v4.xyzw
 dcl_output o0.xyzw
-dcl_temps 3
+dcl_temps 4
 //
 // Initial variable locations:
 //   v0.x <- pin.position.x; v0.y <- pin.position.y; v0.z <- pin.position.z; v0.w <- pin.position.w; 
@@ -64,22 +68,72 @@ dcl_temps 3
 sample_indexable(texture2d)(float,float,float,float) r0.xyzw, v3.xyxx, t0.xyzw, s2  // r0.x <- color.x; r0.y <- color.y; r0.z <- color.z; r0.w <- color.w
 
 #line 12
+lt r1.x, l(0.500000), cb1[8].y
+if_nz r1.x
+
+#line 14
+  mul o0.xyzw, r0.xyzw, v4.xyzw
+  ret 
+
+#line 15
+endif 
+
+#line 17
 dp3 r1.x, v2.xyzx, v2.xyzx
 rsq r1.x, r1.x
 mul r1.xyz, r1.xxxx, v2.xyzx  // r1.x <- N.x; r1.y <- N.y; r1.z <- N.z
 
-#line 13
-mov r2.xyz, -cb1[4].xyzx
-dp3 r1.w, r2.xyzx, r2.xyzx
-rsq r1.w, r1.w
-mul r2.xyz, r1.wwww, r2.xyzx  // r2.x <- L.x; r2.y <- L.y; r2.z <- L.z
+#line 19
+mov r1.w, l(1.000000)  // r1.w <- attenuation
 
-#line 14
+#line 20
+lt r2.x, l(0.500000), cb1[8].x
+if_nz r2.x
+
+#line 22
+  mov r2.xyz, -v1.xyzx
+  add r2.xyz, r2.xyzx, cb1[6].xyzx  // r2.x <- to_light.x; r2.y <- to_light.y; r2.z <- to_light.z
+
+#line 23
+  dp3 r2.w, r2.xyzx, r2.xyzx
+  sqrt r2.w, r2.w  // r2.w <- distance_to_light
+
+#line 24
+  max r3.x, r2.w, l(0.000100)
+  div r2.xyz, r2.xyzx, r3.xxxx  // r2.x <- L.x; r2.y <- L.y; r2.z <- L.z
+
+#line 25
+  max r3.x, cb1[6].w, l(0.000100)
+  div r2.w, r2.w, r3.x
+  mov r2.w, -r2.w
+  add r2.w, r2.w, l(1.000000)
+  max r2.w, r2.w, l(0.000000)
+  min r2.w, r2.w, l(1.000000)  // r2.w <- attenuation
+
+#line 26
+  mul r1.w, r2.w, r2.w  // r1.w <- attenuation
+
+#line 27
+else 
+
+#line 30
+  mov r3.xyz, -cb1[4].xyzx
+  dp3 r2.w, r3.xyzx, r3.xyzx
+  rsq r2.w, r2.w
+  mul r2.xyz, r2.wwww, r3.xyzx  // r2.x <- L.x; r2.y <- L.y; r2.z <- L.z
+
+#line 31
+endif 
+
+#line 32
 dp3 r1.x, r1.xyzx, r2.xyzx
-max r1.x, r1.x, l(0.400000)
-mul r0.xyz, r0.xyzx, r1.xxxx  // r0.x <- diffuse.x; r0.y <- diffuse.y; r0.z <- diffuse.z
+max r1.x, r1.x, l(0.050000)
+mul r1.xyz, r0.xyzx, r1.xxxx
+mul r1.xyz, r1.wwww, r1.xyzx
+mul r1.xyz, r1.xyzx, cb1[7].xyzx
+mul r0.xyz, r1.xyzx, cb1[7].wwww  // r0.x <- diffuse.x; r0.y <- diffuse.y; r0.z <- diffuse.z
 
-#line 15
-mul o0.xyzw, r0.xyzw, v4.xyzw
+#line 33
+mul o0.xyzw, r0.xyzw, v4.xyzw  // o0.x <- <main return value>.x; o0.y <- <main return value>.y; o0.z <- <main return value>.z; o0.w <- <main return value>.w
 ret 
-// Approximately 13 instruction slots used
+// Approximately 39 instruction slots used
