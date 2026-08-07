@@ -283,7 +283,7 @@ bool framework::initialize()
 	// \\Mr.Incredible\\Mr.Incredible.obj
 
 	// skinned_meshオブジェクトを生成する
-	skinned_meshes[0] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\desktop\\desktop.fbx", true);
+	skinned_meshes[0] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\car\\car.fbx", true);
 	skinned_meshes[1] = make_unique<skinned_mesh>(device.Get(), ".\\resources\\cube.000.fbx", true); 
 
 	// 初期シーンの起動
