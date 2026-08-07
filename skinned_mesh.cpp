@@ -246,7 +246,7 @@ void skinned_mesh::fetch_meshes(FbxScene* fbx_scene, std::vector<mesh>& meshes)
     }
 }
 
-// FBXシーンからマテリアル情報を抽出する関数
+// FBXシーンからマテリアル情報を抽出する関数（PBR/全フォーマット自動対応版）
 void skinned_mesh::fetch_materials(FbxScene* fbx_scene,
     std::unordered_map<uint64_t, material>& materials)
 {
@@ -256,28 +256,46 @@ void skinned_mesh::fetch_materials(FbxScene* fbx_scene,
         const scene::node& node{ scene_view.nodes.at(node_index) };
         const FbxNode* fbx_node{ fbx_scene->FindNodeByName(node.name.c_str()) };
 
+        if (!fbx_node) continue;
+
         const int material_count{ fbx_node->GetMaterialCount() };
         for (int material_index = 0; material_index < material_count; material_index++)
         {
             const FbxSurfaceMaterial* fbx_material{ fbx_node->GetMaterial(material_index) };
+            if (!fbx_material) continue;
 
             material material;
             material.name = fbx_material->GetName();
             material.unique_id = fbx_material->GetUniqueID();
-            FbxProperty fbx_property;
-            fbx_property = fbx_material->FindProperty(FbxSurfaceMaterial::sDiffuse);
+
+            // 1. 基本色の取得（フォールバック用）
+            FbxProperty fbx_property = fbx_material->FindProperty(FbxSurfaceMaterial::sDiffuse);
             if (fbx_property.IsValid())
             {
                 const FbxDouble3 color{ fbx_property.Get<FbxDouble3>() };
-                material.Kd.x = static_cast<float>(color[0]);
-                material.Kd.y = static_cast<float>(color[1]);
-                material.Kd.z = static_cast<float>(color[2]);
-                material.Kd.w = 1.0f;
-            
-                const FbxFileTexture * fbx_texture{ fbx_property.GetSrcObject<FbxFileTexture>() };
-                material.texture_filenames[0] =
-                    fbx_texture ? fbx_texture->GetRelativeFileName() : "";
+                material.Kd = { static_cast<float>(color[0]), static_cast<float>(color[1]), static_cast<float>(color[2]), 1.0f };
             }
+
+            // 2. 【核心】プロパティ名に依存せず、マテリアルに紐付く全テクスチャを直接根こそぎ取得する
+            int texture_count = fbx_material->GetSrcObjectCount<FbxFileTexture>();
+            for (int i = 0; i < texture_count; ++i)
+            {
+                const FbxFileTexture* fbx_texture = fbx_material->GetSrcObject<FbxFileTexture>(i);
+                if (fbx_texture)
+                {
+                    std::string rel_name = fbx_texture->GetRelativeFileName();
+                    std::string abs_name = fbx_texture->GetFileName();
+                    std::string tex_name = !rel_name.empty() ? rel_name : abs_name;
+
+                    // ノーマルマップ（Normal）以外のカラーテクスチャを優先的にセットする
+                    if (material.texture_filenames[0].empty() ||
+                        (tex_name.find("Normal") == std::string::npos && tex_name.find("normal") == std::string::npos))
+                    {
+                        material.texture_filenames[0] = tex_name;
+                    }
+                }
+            }
+
             materials.emplace(material.unique_id, std::move(material));
         }
     }
@@ -336,42 +354,70 @@ void skinned_mesh::create_com_objects(ID3D11Device* device, const char* fbx_file
     hr = device->CreateBuffer(&buffer_desc, nullptr, constant_buffer.ReleaseAndGetAddressOf());
     _ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr));
 
-    // シェーダーリソースビュー生成コード
-    for (std::unordered_map<uint64_t, material>::iterator iterator = materials.begin();
-        iterator != materials.end(); ++iterator)
+    // シェーダーリソースビュー生成コード（強化版多段検索）
+    for (auto& pair : materials)
     {
+        material& mat = pair.second;
         bool is_loaded = false;
 
-        if (iterator->second.texture_filenames[0].size() > 0)
+        if (!mat.texture_filenames[0].empty())
         {
-            std::filesystem::path path(fbx_filename);
-            path.replace_filename(iterator->second.texture_filenames[0]);
+            std::filesystem::path fbx_path(fbx_filename);
+            std::filesystem::path fbx_dir = fbx_path.parent_path(); // FBXがあるフォルダ
+            std::filesystem::path raw_tex_path(mat.texture_filenames[0]);
 
-            // 画像ファイルがディスク上に実際に存在する場合のみ読み込みを試みる
-            if (std::filesystem::exists(path))
+            // 探索パターン候補のリスト作成
+            std::vector<std::filesystem::path> search_paths = {
+                fbx_dir / raw_tex_path,                                    // パターン1: FBX内部の相対パスをそのまま結合
+                fbx_dir / raw_tex_path.filename(),                        // パターン2: FBXと同じフォルダ内（画像名のみ）
+                fbx_dir / "textures" / raw_tex_path.filename(),            // パターン3: FBXフォルダ内の textures/ フォルダ
+                fbx_dir / "Textures" / raw_tex_path.filename(),            // パターン4: FBXフォルダ内の Textures/ フォルダ
+                raw_tex_path                                               // パターン5: 絶対パス
+            };
+
+            std::filesystem::path valid_path;
+            for (const auto& candidate : search_paths)
+            {
+                if (std::filesystem::exists(candidate) && !std::filesystem::is_directory(candidate))
+                {
+                    valid_path = candidate;
+                    break;
+                }
+            }
+
+            // 画像が見つかった場合はロードを試みる
+            if (!valid_path.empty())
             {
                 D3D11_TEXTURE2D_DESC texture2d_desc{};
-                HRESULT hr = load_texture_from_file(
+                HRESULT hr_tex = load_texture_from_file(
                     device,
-                    path.c_str(),
-                    iterator->second.shader_resource_views[0].GetAddressOf(),
+                    valid_path.c_str(),
+                    mat.shader_resource_views[0].GetAddressOf(),
                     &texture2d_desc
                 );
 
-                // 正常に読み込めて SRV が作成された場合のみ成功とする
-                if (SUCCEEDED(hr) && iterator->second.shader_resource_views[0] != nullptr)
+                if (SUCCEEDED(hr_tex) && mat.shader_resource_views[0] != nullptr)
                 {
                     is_loaded = true;
+                    // デバッグ出力
+                    std::string log = "=== [Texture Loaded SUCCESS] === " + valid_path.string() + "\n";
+                    OutputDebugStringA(log.c_str());
                 }
+            }
+
+            if (!is_loaded)
+            {
+                std::string log = "!!! [Texture NOT FOUND] !!! Target: " + mat.texture_filenames[0] + "\n";
+                OutputDebugStringA(log.c_str());
             }
         }
 
-        // 画像が存在しない・壊れている・指定がない場合はすべてダミー（白単色）テクスチャを作成して割り当てる
+        // 画像が見つからなかった・読み込めなかった場合はダミー（白単色）テクスチャを作成
         if (!is_loaded)
         {
             make_dummy_texture(
                 device,
-                iterator->second.shader_resource_views[0].ReleaseAndGetAddressOf(),
+                mat.shader_resource_views[0].ReleaseAndGetAddressOf(),
                 0xFFFFFFFF,
                 16
             );

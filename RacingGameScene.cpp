@@ -1,6 +1,8 @@
-#include "framework.h"
 #include "RacingGameScene.h"
-#include <cmath> //（std::fmod 用）
+#include <cmath>
+#ifdef USE_IMGUI
+#include "imgui/imgui.h"
+#endif
 
 using namespace DirectX;
 
@@ -15,9 +17,17 @@ bool RacingGameScene::initialize(ID3D11Device* device)
 	cameraController = std::make_unique<CameraController>();
 	totalTime = 0.0f;
 
-	// FBXモデルの読み込み (ファイルパスはプロジェクト内の配置に合わせて調整)
-	// 例: ".\\resources\\cube.000.fbx" や ".\\resources\\cube.001.fbx" など
-	carMesh = std::make_unique<skinned_mesh>(device, ".\\resources\\desktop\\desktop.fbx", true);
+	// static_mesh (.objモチE��) の読み込み
+	// ※お持ちの .obj ファイルパスに合わせて修正してください (侁E L".\\resources\\car\\car.obj")
+	carMesh = std::make_unique<static_mesh>(device, L".\\resources\\car\\123.obj");
+	characterMesh = std::make_unique<skinned_mesh>(device, ".\\resources\\cube.000.fbx", true);
+
+	D3D11_BUFFER_DESC cb_desc{};
+	cb_desc.ByteWidth = sizeof(SceneConstants);
+	cb_desc.Usage = D3D11_USAGE_DEFAULT;
+	cb_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	if (FAILED(device->CreateBuffer(&cb_desc, nullptr, sceneConstantBuffer.GetAddressOf()))) return false;
+	XMStoreFloat4x4(&characterWorld, XMMatrixTranslation(4.0f, 0.0f, 4.0f));
 
 	return true;
 }
@@ -46,7 +56,7 @@ void RacingGameScene::update(float elapsedTime)
 void RacingGameScene::render(ID3D11DeviceContext* immediate_context, float elapsedTime)
 {
 	// ----------------------------------------------------
-	// 1. 定数バッファ（カメラのビュー・プロジェクション行列）の設定
+	// 1. 定数バッファ�E�カメラのビュー・プロジェクション行�E�E��EGPU送信
 	// ----------------------------------------------------
 	if (cameraController)
 	{
@@ -56,45 +66,44 @@ void RacingGameScene::render(ID3D11DeviceContext* immediate_context, float elaps
 
 		float aspect_ratio = viewport.Width / viewport.Height;
 
-		// CameraController が計算した FOV、カメラ位置(Eye)、注視点(Focus)、上方向(Up)を使用
 		XMMATRIX P = XMMatrixPerspectiveFovLH(XMConvertToRadians(cameraController->get_fov()), aspect_ratio, 0.1f, 300.0f);
 
 		XMVECTOR eye = XMLoadFloat3(&cameraController->get_eye());
 		XMVECTOR focus = XMLoadFloat3(&cameraController->get_focus());
 		XMVECTOR up = XMLoadFloat3(&cameraController->get_up());
-
 		XMMATRIX V = XMMatrixLookAtLH(eye, focus, up);
 
-		// 定数バッファの更新 (frameworkの構造体に合わせる)
-		framework::scene_constans scene_data{};
+		SceneConstants scene_data{};
 		XMStoreFloat4x4(&scene_data.view_projection, V * P);
-		scene_data.light_direction = XMFLOAT4(0.0f, 1.0f, 1.0f, 0.0f); // ライトの向き
+		scene_data.light_direction = XMFLOAT4(0.0f, 1.0f, 1.0f, 0.0f);
 		scene_data.camera_position = XMFLOAT4(cameraController->get_eye().x, cameraController->get_eye().y, cameraController->get_eye().z, 1.0f);
 
-		// スロット1の定数バッファ（VS / PS）にセット
-		// ※framework側の constant_buffers[0] を利用する場合は framework 経由またはシーン内で更新
+		immediate_context->UpdateSubresource(sceneConstantBuffer.Get(), 0, nullptr, &scene_data, 0, 0);
+		immediate_context->VSSetConstantBuffers(1, 1, sceneConstantBuffer.GetAddressOf());
+		immediate_context->PSSetConstantBuffers(1, 1, sceneConstantBuffer.GetAddressOf());
 	}
 
 	// ----------------------------------------------------
-	// 2. 3Dモデル（車体）の描画
+	// 2. static_mesh (3DモチE��) の描画
 	// ----------------------------------------------------
 	if (carMesh && player)
 	{
-		// Player が計算したワールド行列（位置・Y軸回転・ドリフト傾き）を取得
 		XMFLOAT4X4 carWorld = player->get_transform();
-
-		// 車体カラー（RGBA）
 		XMFLOAT4 materialColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-		// 3D描画用のステート設定
-		// （※framework 側でバインドされているステートでそのまま描画できます）
+		// static_mesh の描画
 		carMesh->render(immediate_context, carWorld, materialColor);
 	}
 
+	if (characterMesh)
+	{
+		characterMesh->render(immediate_context, characterWorld, XMFLOAT4(1, 1, 1, 1));
+	}
+
 #ifdef USE_IMGUI
-	// 2D HUD (ImGui を使用したスピードメーターとタイム表示)
-	ImGui::SetNextWindowPos(ImVec2(20, 20));
-	ImGui::SetNextWindowSize(ImVec2(300, 160));
+	// 2D HUD (ImGui)
+	ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_Once);
+	ImGui::SetNextWindowSize(ImVec2(300, 160), ImGuiCond_Once);
 
 	ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse;
 	ImGui::Begin("Racing HUD", nullptr, flags);
@@ -125,6 +134,8 @@ void RacingGameScene::render(ID3D11DeviceContext* immediate_context, float elaps
 void RacingGameScene::uninitialize()
 {
 	carMesh.reset();
+	characterMesh.reset();
+	sceneConstantBuffer.Reset();
 	player.reset();
 	cameraController.reset();
 }

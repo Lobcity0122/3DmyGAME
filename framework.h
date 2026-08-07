@@ -1,365 +1,50 @@
 #pragma once
-
 #include <windows.h>
-#include <tchar.h>
-#include <sstream>
-
-#include "misc.h"
+#include <d3d11.h>
+#include <wrl.h>
+#include <memory>
 #include "high_resolution_timer.h"
+#include "Scene.h"
 #ifdef USE_IMGUI
 #include "imgui/imgui.h"
-#include "imgui/imgui_internal.h"
 #include "imgui/imgui_impl_dx11.h"
 #include "imgui/imgui_impl_win32.h"
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 extern ImWchar glyphRangesJapanese[];
 #endif
-#include <d3d11.h>
-#include "sprite.h"
-#include "sprite_batch.h"
-
-#include <wrl.h>
-using namespace Microsoft::WRL;
-
-#include <memory> // std::unique_ptr を使うために必要
-using namespace std;
-//#include <sprite.h>
-
-using namespace ImGui;
-
-#include "geometric_primitive.h"
-#include "static_mesh.h"
-#include "skinned_mesh.h"
-
-#include "Scene.h"
-
-// クラスの前方宣言（循環参照防止）
-class MenuScene;
-class RacingGameScene;
-class OnlyUpGameScene;
-
 #define SCREEN_WIDTH 1280
 #define SCREEN_HEIGHT 720
 #define FULLSCREEN FALSE
 #define APPLICATION_NAME L"X3DGP"
-
 class framework
 {
 public:
-	CONST HWND hwnd;
-
-	ComPtr<ID3D11Device> device;
-	ComPtr<ID3D11DeviceContext> immediate_context;
-	ComPtr<IDXGISwapChain> swap_chain;
-	ComPtr<ID3D11RenderTargetView> render_target_view;
-	ComPtr<ID3D11DepthStencilView> depth_stencil_view;
-
-	ComPtr<ID3D11SamplerState> sampler_states[3];
-
-	// オブジェクトの描画順と画面上の前後関係の設定
-	ComPtr<ID3D11DepthStencilState> depth_stencil_states[4];
-
-	// 画像の背景の透過させるための変数
-	ComPtr<ID3D11BlendState> blend_states[4];
-
-	// 切り替え用のピクセルシェーダー配列
-	ComPtr<ID3D11PixelShader> replaced_pixel_shaders[8];
-
-	unique_ptr<sprite> sprites[8];
-	unique_ptr<sprite_batch> sprite_batches[8];
-
-	// シーン定数バッファ
-	struct scene_constans
-	{
-		DirectX::XMFLOAT4X4 view_projection; // ビュー・プロジェクション変換行列
-		DirectX::XMFLOAT4 light_direction;   // ライトの向き
-		DirectX::XMFLOAT4 camera_position;   // カメラの位置
-	};
-	ComPtr<ID3D11Buffer> constant_buffers[8];
-
-	unique_ptr<geometric_primitive> geometric_primitives[8];
-
-	// ワイヤーフレーム用
-	// 0:ソリッド・裏面カリング
-	ComPtr<ID3D11RasterizerState> rasterizer_states[5];
-
-	// static_mesh *型配列を要素数8で宣言
-	std::unique_ptr<static_mesh> static_meshes[8];
-
-	// sknned_mesh *型配列を要素数8で宣言
-	std::unique_ptr<skinned_mesh> skinned_meshes[8];
-
-	// グリッド描画用のバッファ
-	ComPtr<ID3D11Buffer> grid_vertex_buffer;
-	UINT grid_vertex_count = 0;
-	bool is_grid_initialized = false;
-
-	// 1頂点のデータ構造（座標＋色）
-	struct DebugVertex
-	{
-		DirectX::XMFLOAT3 position;
-		DirectX::XMFLOAT4 color;
-	};
-
-	bool show_debug_grid = true; // デバッググリッドの表示ON/OFF
-
-	// デバッグ用のシェーダーと入力レイアウト
-	ComPtr<ID3D11VertexShader> debug_vs;
-	ComPtr<ID3D11PixelShader> debug_ps;
-	ComPtr<ID3D11InputLayout> debug_input_layout;
-
-	// シーン管理変数
-	std::unique_ptr<Scene> current_scene;
-	SceneType requested_scene_type = SceneType::RACING; // 初期シーンを RACING に設定してみる
-
-	void change_scene(SceneType new_scene_type);
-
-	// =======================================================
-	// ▼ 追加：カメラ（自機）とステージ制御用の変数
-	// =======================================================
-	//DirectX::XMFLOAT3 camera_position = { 0.0f, 1.0f, 5.0f }; // 自機の初期位置（土管の外側）
-	//DirectX::XMFLOAT3 camera_target = { 0.0f, 1.0f, 0.0f };  // カメラの注視点
-	DirectX::XMFLOAT3 camera_up = { 0.0f, 1.0f, 0.0f };  // カメラの上方向ベクトル
-
-	float camera_angle_y = 0.0f; // 左右の首振り角度
-	float camera_angle_x = 0.0f; // 上下の首振り角度
-
-	// 土管（ステージ）のワールド変換行列（今回は原点に配置）
-	DirectX::XMFLOAT4X4 stage_world_matrix = {
-		1, 0, 0, 0,
-		0, 1, 0, 0,
-		0, 0, 1, 0,
-		0, 0, 0, 1
-	};
-
-	// デバッグ用：当たり判定情報
-	bool is_collision_detected = false;
-	DirectX::XMFLOAT3 last_hit_position = { 0.0f, 0.0f, 0.0f };
-	DirectX::XMFLOAT3 last_hit_normal = { 0.0f, 0.0f, 0.0f };
-	int mesh_count = 0;
-	int triangle_count = 0;
-
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	// ImGuiで各種設定
-	// [ステート選択用インデックス]
-	int Sampler_index = 1; // 初期値 Linear
-	int Blend_index = 0;   // 初期値 Alpha Blend
-	int Depth_index = 3;   // 初期値 Test:OFF/Write:OFF
-	int Rasterizer_index = 0; // 初期値 裏面カリング(塗りつぶし)
-
-	// Sprite0用パラメータ
-	DirectX::XMFLOAT2 position0{ 0.0f, 0.0f };
-	float sprite0_angle = 0.0f;
-	DirectX::XMFLOAT4 sprite0_color{ 1.0f, 1.0f, 1.0f, 1.0f };
-
-	// Sprite1用パラメータ
-	DirectX::XMFLOAT2 position1{ 15.0f, 200.0f };
-	float sprite1_angle = 0.0f;
-	DirectX::XMFLOAT4 sprite1_color{ 1.0f, 1.0f, 1.0f, 1.0f };
-	int animationNo = 0;
-	float src_y = 0.0f;
-
-	// [Textout用パラメータ]
-	char text_buffer[128] = "DIRECTX11";
-	DirectX::XMFLOAT2 text_pos{ 0.0f, 0.0f };
-	DirectX::XMFLOAT2 text_size{ 32.0f, 32.0f }; // 1文字の幅と高さ
-	DirectX::XMFLOAT4 text_color{ 1.0f, 1.0f, 1.0f, 1.0f };
-
-	bool use_batch = true;    // スプライトバッチを使用 / 通常スプライト単体
-	int sprite_draw_count = 1; // 描画するスプライトの個数
-
-	// [カメラ用のパラメータ]
-	//float camera_yaw = 0.0f;    // 左右の視線角度（度数法）
-	//float camera_pitch = 0.0f;  // 上下の視線角度（度数法）
-	float camera_speed = 10.0f;  // 移動速度
-
-	// ライトの照射方向
-	DirectX::XMFLOAT4 light_direction{ 0.0f,0.0f,1.0f,0.0f };
-
-	// -------------------------------------------------------
-	// ▼ Unity / Unreal Engine カメラ用変数
-	// -------------------------------------------------------
-	DirectX::XMFLOAT3 camera_position = { 0.0f, 2.0f, -5.0f }; // カメラの位置
-	DirectX::XMFLOAT3 camera_target = { 0.0f, 0.0f, 0.0f };   // 注視点
-
-	float camera_pitch = 0.0f; // 上下の角度（ラジアン）
-	float camera_yaw = 0.0f;   // 左右の角度（ラジアン）
-
-	// マウスドラッグ用
-	POINT last_mouse_pos = { 0, 0 };
-	bool is_right_daging = false;
-
-	// [幾何プリミティブ用パラメータ]
-	// 位置
-	/*DirectX::XMFLOAT3 cube_position{ -1.0f,0.0f,0.0f };
-	DirectX::XMFLOAT3 cube_position2{ 1.0f,0.0f,0.0f };*/
-
-	// 姿勢(Roll、Pitch、Yaw) ※ImGUIで扱いやすいよう「度数法」で保持
-	DirectX::XMFLOAT3 cube_rotation{ 0.0f,0.0f,0.0f };
-
-	// 寸法
-	DirectX::XMFLOAT3 cube_scale{ 1.0f,1.0f,1.0f };
-
-	// 色
-	float cube_color[4] = { 0.5f,0.8f,0.2f,1.0f };
-
-	// [static_mesh用パラメータ]
-	DirectX::XMFLOAT3 static_mesh_position{ 0.0f,0.0f,0.0f };
-
-	DirectX::XMFLOAT3 static_mesh_rotation{ 0.0f,0.0f,0.0f };
-
-	DirectX::XMFLOAT3 static_mesh_scale{ 0.1f,0.1f,0.1f };
-
-	float static_mesh_color[4] = { 1.0f,1.0f,1.0f,1.0f };
-
-	// [skinned_mesh用パラメータ]
-	DirectX::XMFLOAT3 skinned_mesh_position{ 0.0f,0.0f,0.0f };
-
-	DirectX::XMFLOAT3 skinned_mesh_rotation{ 0.0f,180.0f,0.0f };
-
-	DirectX::XMFLOAT3 skinned_mesh_scale{ 0.1f,0.1f,0.1f };
-
-	DirectX::XMFLOAT3 skinned_mesh_position2{ 0.0f,0.0f,0.0f };
-
-	DirectX::XMFLOAT3 skinned_mesh_rotation2{ 0.0f,0.0f,0.0f };
-
-	DirectX::XMFLOAT3 skinned_mesh_scale2{ 1.0f,1.0f,1.0f };
-
-	float skinned_mesh_color[4] = { 1.0f, 1.0f, 1.0f, 1.0f }; // 0.02f, 0.02f, 0.05f, 1.0f
-
-	float skinned_mesh_color2[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-
-	// オブジェクトの回転速度（1秒あたりの度数）
-	float rotate_speed = 45.0f;
-
-	// 操作モード切り替え用フラグ (true: カメラ操作, false: 自機(Cube)操作)
-	bool is_camera_control_mode = true;
-	bool is_key1_pressed_prev = false; // '1'キーの押下フラグ（トグル用）
-
-	/////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-	framework(HWND hwnd);
-	~framework();
-
+	const HWND hwnd;
+	framework(HWND window) : hwnd(window) {}
+	~framework() = default;
 	framework(const framework&) = delete;
 	framework& operator=(const framework&) = delete;
-	framework(framework&&) noexcept = delete;
-	framework& operator=(framework&&) noexcept = delete;
-
-	int run()
-	{
-		MSG msg{};
-
-		if (!initialize())
-		{
-			return 0;
-		}
-
-#ifdef USE_IMGUI
-		IMGUI_CHECKVERSION();
-		ImGui::CreateContext();
-		ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\consola.ttf", 14.0f, nullptr, glyphRangesJapanese);
-		ImGui_ImplWin32_Init(hwnd);
-		ImGui_ImplDX11_Init(device.Get(), immediate_context.Get());
-		ImGui::StyleColorsDark();
-#endif
-
-		while (WM_QUIT != msg.message)
-		{
-			if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-			else
-			{
-				tictoc.tick();
-				calculate_frame_stats();
-				update(tictoc.time_interval());
-				render(tictoc.time_interval());
-			}
-		}
-
-#ifdef USE_IMGUI
-		ImGui_ImplDX11_Shutdown();
-		ImGui_ImplWin32_Shutdown();
-		ImGui::DestroyContext();
-#endif
-
-#if 1
-		//BOOL fullscreen = 0;
-		BOOL fullscreen{};
-		swap_chain->GetFullscreenState(&fullscreen, 0);
-		if (fullscreen)
-		{
-			swap_chain->SetFullscreenState(FALSE, 0);
-		}
-#endif
-
-		return uninitialize() ? static_cast<int>(msg.wParam) : 0;
-	}
-
-	LRESULT CALLBACK handle_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
-	{
-#ifdef USE_IMGUI
-		if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam)) { return true; }
-#endif
-		switch (msg)
-		{
-		case WM_PAINT:
-		{
-			PAINTSTRUCT ps{};
-			BeginPaint(hwnd, &ps);
-
-			EndPaint(hwnd, &ps);
-		}
-		break;
-
-		case WM_DESTROY:
-			PostQuitMessage(0);
-			break;
-		case WM_CREATE:
-			break;
-		case WM_KEYDOWN:
-			if (wparam == VK_ESCAPE)
-			{
-				PostMessage(hwnd, WM_CLOSE, 0, 0);
-			}
-			break;
-		case WM_ENTERSIZEMOVE:
-			tictoc.stop();
-			break;
-		case WM_EXITSIZEMOVE:
-			tictoc.start();
-			break;
-		default:
-			return DefWindowProc(hwnd, msg, wparam, lparam);
-		}
-		return 0;
-	}
-
+	int run();
+	LRESULT CALLBACK handle_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 private:
 	bool initialize();
-	void update(float elapsed_time/*Elapsed seconds from last frame*/);
-	void render(float elapsed_time/*Elapsed seconds from last frame*/);
+	void update(float elapsed_time);
+	void render(float elapsed_time);
 	bool uninitialize();
-
-private:
+	void change_scene(SceneType new_scene_type);
+	void calculate_frame_stats();
+	Microsoft::WRL::ComPtr<ID3D11Device> device;
+	Microsoft::WRL::ComPtr<ID3D11DeviceContext> immediate_context;
+	Microsoft::WRL::ComPtr<IDXGISwapChain> swap_chain;
+	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> render_target_view;
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> depth_stencil_view;
+	Microsoft::WRL::ComPtr<ID3D11SamplerState> linear_sampler;
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilState> depth_enabled_state;
+	Microsoft::WRL::ComPtr<ID3D11BlendState> opaque_blend_state;
+	Microsoft::WRL::ComPtr<ID3D11RasterizerState> rasterizer_state;
+	std::unique_ptr<Scene> current_scene;
+	SceneType requested_scene_type = SceneType::RACING;
 	high_resolution_timer tictoc;
-	uint32_t frames_per_second{ 0 };
-	float count_by_seconds{ 0.0f };
-	void calculate_frame_stats()
-	{
-		if (++frames_per_second, (tictoc.time_stamp() - count_by_seconds) >= 1.0f)
-		{
-			float fps = static_cast<float>(frames_per_second);
-			std::wostringstream outs;
-			outs.precision(6);
-			outs << L"X3DGP" << L" : FPS : " << fps << L" / " << L"Frame Time : " << 1000.0f / fps << L" (ms)";
-			SetWindowTextW(hwnd, outs.str().c_str());
-
-			frames_per_second = 0;
-			count_by_seconds += 1.0f;
-		}
-	}
+	uint32_t frames_per_second = 0;
+	float count_by_seconds = 0.0f;
 };

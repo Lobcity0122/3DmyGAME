@@ -3,7 +3,9 @@
 #include "Scene.h"
 #include "Player.h"
 #include "CameraController.h"
+#include "static_mesh.h"
 #include "skinned_mesh.h"
+#include <wrl.h>
 #include <memory>
 
 // レーシングゲームシーン
@@ -23,7 +25,19 @@ public:
 private:
 	std::unique_ptr<Player> player;
 	std::unique_ptr<CameraController> cameraController;
-	std::unique_ptr<skinned_mesh> carMesh;
+
+	// static_mesh クラスに変更
+	std::unique_ptr<static_mesh> carMesh;
+	std::unique_ptr<skinned_mesh> characterMesh;
+
+	struct SceneConstants
+	{
+		DirectX::XMFLOAT4X4 view_projection;
+		DirectX::XMFLOAT4 light_direction;
+		DirectX::XMFLOAT4 camera_position;
+	};
+	Microsoft::WRL::ComPtr<ID3D11Buffer> sceneConstantBuffer;
+	DirectX::XMFLOAT4X4 characterWorld{};
 
 	float totalTime = 0.0f;
 };
