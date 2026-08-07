@@ -6,6 +6,7 @@ using namespace Microsoft::WRL;
 
 bool framework::initialize()
 {
+	// 初期化の順序: デバイス/スワップチェーン -> カラー/深度ターゲット -> 共通ステート -> 最初のシーン
 	DXGI_SWAP_CHAIN_DESC swap_chain_desc{};
 	swap_chain_desc.BufferCount = 1;
 	swap_chain_desc.BufferDesc.Width = SCREEN_WIDTH;
@@ -29,6 +30,7 @@ bool framework::initialize()
 		swap_chain.GetAddressOf(), device.GetAddressOf(), &feature_level, immediate_context.GetAddressOf());
 	if (FAILED(hr)) return false;
 
+	// バックバッファは可視カラーを格納する。別のテクスチャはピクセルごとの深度を格納する。
 	ComPtr<ID3D11Texture2D> back_buffer;
 	if (FAILED(swap_chain->GetBuffer(0, IID_PPV_ARGS(back_buffer.GetAddressOf()))) ||
 		FAILED(device->CreateRenderTargetView(back_buffer.Get(), nullptr, render_target_view.GetAddressOf()))) return false;
@@ -45,6 +47,7 @@ bool framework::initialize()
 	if (FAILED(device->CreateTexture2D(&depth_desc, nullptr, depth_texture.GetAddressOf())) ||
 		FAILED(device->CreateDepthStencilView(depth_texture.Get(), nullptr, depth_stencil_view.GetAddressOf()))) return false;
 
+	// これらはすべての Scene::render() 呼び出しの前に使用されるデフォルトのステート。
 	D3D11_SAMPLER_DESC sampler_desc{};
 	sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 	sampler_desc.AddressU = sampler_desc.AddressV = sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -80,6 +83,7 @@ bool framework::initialize()
 	return current_scene != nullptr;
 }
 
+// アプリケーションループのエントリーポイント、フレームごとに更新と描画を繰り返す
 int framework::run()
 {
 	if (!initialize()) return 0;
@@ -119,7 +123,7 @@ int framework::run()
 void framework::update(float elapsed_time)
 {
 #ifdef USE_IMGUI
-	// Widgets may be submitted by a scene during render(), so begin the ImGui frame first.
+	// シーンの render() 内でウィジェットが送信される場合があるため、先に ImGui のフレームを開始します。
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
@@ -132,6 +136,7 @@ void framework::update(float elapsed_time)
 
 void framework::render(float elapsed_time)
 {
+	// 毎フレームの実行順序: 画面クリア -> 共通ステート設定 -> シーン描画コマンド -> ImGui処理 -> 画面反映(Present)
 	const float clear_color[] = { 0.08f, 0.10f, 0.14f, 1.0f };
 	immediate_context->ClearRenderTargetView(render_target_view.Get(), clear_color);
 	immediate_context->ClearDepthStencilView(depth_stencil_view.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
@@ -155,6 +160,7 @@ bool framework::uninitialize()
 	return true;
 }
 
+// シーンの切り替えは、現在のシーンを uninitialize() して破棄し、新しいシーンを生成して initialize() する。
 void framework::change_scene(SceneType new_scene_type)
 {
 	if (current_scene) current_scene->uninitialize();
@@ -167,6 +173,7 @@ void framework::change_scene(SceneType new_scene_type)
 		current_scene.reset();
 }
 
+// フレームごとの統計情報を計算し、ウィンドウタイトルに FPS を表示する
 void framework::calculate_frame_stats()
 {
 	if (++frames_per_second && (tictoc.time_stamp() - count_by_seconds) >= 1.0f)
@@ -179,6 +186,7 @@ void framework::calculate_frame_stats()
 	}
 }
 
+// ウィンドウメッセージの処理。WM_DESTROY で PostQuitMessage() を呼び出す。
 LRESULT CALLBACK framework::handle_message(HWND, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 #ifdef USE_IMGUI

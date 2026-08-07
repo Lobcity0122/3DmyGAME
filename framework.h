@@ -1,10 +1,12 @@
 #pragma once
+
 #include <windows.h>
 #include <d3d11.h>
 #include <wrl.h>
 #include <memory>
 #include "high_resolution_timer.h"
 #include "Scene.h"
+
 #ifdef USE_IMGUI
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_dx11.h"
@@ -12,27 +14,35 @@
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 extern ImWchar glyphRangesJapanese[];
 #endif
+
 #define SCREEN_WIDTH 1280
 #define SCREEN_HEIGHT 720
 #define FULLSCREEN FALSE
 #define APPLICATION_NAME L"X3DGP"
+
 class framework
 {
 public:
+	// アプリケーションループのエントリーポイント。このクラスはDirect3Dを所有し、ゲームオブジェクトは所有しない
 	const HWND hwnd;
 	framework(HWND window) : hwnd(window) {}
 	~framework() = default;
 	framework(const framework&) = delete;
 	framework& operator=(const framework&) = delete;
+
 	int run();
 	LRESULT CALLBACK handle_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+
 private:
+	// 初期化、フレームごとの更新・描画、終了処理は意図的に分離
 	bool initialize();
 	void update(float elapsed_time);
 	void render(float elapsed_time);
 	bool uninitialize();
 	void change_scene(SceneType new_scene_type);
 	void calculate_frame_stats();
+
+	// すべてのシーンで共有されるDirect3Dオブジェクト
 	Microsoft::WRL::ComPtr<ID3D11Device> device;
 	Microsoft::WRL::ComPtr<ID3D11DeviceContext> immediate_context;
 	Microsoft::WRL::ComPtr<IDXGISwapChain> swap_chain;
@@ -42,6 +52,8 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11DepthStencilState> depth_enabled_state;
 	Microsoft::WRL::ComPtr<ID3D11BlendState> opaque_blend_state;
 	Microsoft::WRL::ComPtr<ID3D11RasterizerState> rasterizer_state;
+
+	// シーンがゲームルールとモデルを所有する。frameworkはこのインターフェースを呼び出すだけ
 	std::unique_ptr<Scene> current_scene;
 	SceneType requested_scene_type = SceneType::RACING;
 	high_resolution_timer tictoc;

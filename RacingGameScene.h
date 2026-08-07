@@ -5,39 +5,42 @@
 #include "CameraController.h"
 #include "static_mesh.h"
 #include "skinned_mesh.h"
-#include <wrl.h>
 #include <memory>
+#include <wrl.h>
 
-// レーシングゲームシーン
-class RacingGameScene : public Scene
+// このクラスはレース専用の状態のみを管理。framework 側はどのモデルが使われているかを知らない。
+class RacingGameScene final : public Scene
 {
 public:
-	RacingGameScene();
-	virtual ~RacingGameScene() override;
-
-	virtual bool initialize(ID3D11Device* device) override;
-	virtual void update(float elapsedTime) override;
-	virtual void render(ID3D11DeviceContext* immediate_context, float elapsedTime) override;
-	virtual void uninitialize() override;
-
-	virtual SceneType get_type() const override { return SceneType::RACING; }
+	bool initialize(ID3D11Device* device) override;
+	void update(float elapsed_time) override;
+	void render(ID3D11DeviceContext* immediate_context, float elapsed_time) override;
+	void uninitialize() override;
+	SceneType get_type() const override { return SceneType::RACING; }
 
 private:
+	// ゲーム状態: Playerが入力/移動を扱い、CameraControllerがそれをビューカメラへ変換する。
 	std::unique_ptr<Player> player;
-	std::unique_ptr<CameraController> cameraController;
+	std::unique_ptr<CameraController> camera_controller;
 
-	// static_mesh クラスに変更
-	std::unique_ptr<static_mesh> carMesh;
-	std::unique_ptr<skinned_mesh> characterMesh;
+	// 2つの独立したモデル読み込み用パス。ここに並べておくことで、違いや使い方が一目で比較できる。
+	std::unique_ptr<static_mesh> car_mesh;          // OBJ（静的メッシュ：車など）
+	std::unique_ptr<skinned_mesh> character_mesh;   // FBX（スキンメッシュ：キャラなど）
 
+	// シェーダーレジスタ b1: シーン内の全モデルで共有されるデータ。
+	// 各メッシュは独自の b0 バッファ（ワールド行列とマテリアルカラー）を作成・更新。
 	struct SceneConstants
 	{
 		DirectX::XMFLOAT4X4 view_projection;
 		DirectX::XMFLOAT4 light_direction;
 		DirectX::XMFLOAT4 camera_position;
 	};
-	Microsoft::WRL::ComPtr<ID3D11Buffer> sceneConstantBuffer;
-	DirectX::XMFLOAT4X4 characterWorld{};
+	Microsoft::WRL::ComPtr<ID3D11Buffer> scene_constant_buffer;
+	DirectX::XMFLOAT4X4 character_world{};
+	float total_time = 0.0f;
 
-	float totalTime = 0.0f;
+	// 描画関数は毎フレーム同じ順序でこれらを呼び出す。
+	void update_scene_constants(ID3D11DeviceContext* immediate_context);
+	void draw_models(ID3D11DeviceContext* immediate_context);
+	void draw_hud();
 };
