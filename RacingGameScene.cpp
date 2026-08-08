@@ -14,7 +14,7 @@ bool RacingGameScene::initialize(ID3D11Device* device)
 	camera_controller = std::make_unique<CameraController>();
 	car_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
 	stage_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage.obj");
-	character_mesh = std::make_unique<skinned_mesh>(device, ".\\resources\\cube.000.fbx", true);
+	background_mesh = std::make_unique<static_mesh>(device, L".\\resources\\skybox_side_chicken_gun\\haikei.obj");
 	debug_cube = std::make_unique<cube>(device);
 	configure_object_transforms();
 
@@ -24,6 +24,14 @@ bool RacingGameScene::initialize(ID3D11Device* device)
 	buffer_desc.Usage = D3D11_USAGE_DEFAULT;
 	buffer_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	if (FAILED(device->CreateBuffer(&buffer_desc, nullptr, scene_constant_buffer.GetAddressOf()))) return false;
+
+	// 通常のモデルは背面を省略するが、背景はカプセルの内側から見るので両面を描画する。
+	D3D11_RASTERIZER_DESC background_rasterizer_desc{};
+	background_rasterizer_desc.FillMode = D3D11_FILL_SOLID;
+	background_rasterizer_desc.CullMode = D3D11_CULL_NONE;
+	background_rasterizer_desc.DepthClipEnable = TRUE;
+	if (FAILED(device->CreateRasterizerState(&background_rasterizer_desc,
+		background_rasterizer_state.GetAddressOf()))) return false;
 	
 	// 初期 Transform から描画用ワールド行列を作る。
 	update_object_world_matrices();
@@ -61,10 +69,11 @@ void RacingGameScene::configure_object_transforms()
 		{ 1.0f, 1.0f, 1.0f }   // scale
 	};
 
-	character_transform = {
-		{ 4.0f, 0.0f, 4.0f },
+	// 背景カプセルは原点を中心に大きく配置。ステージ全体を内部に収めるためのスケール。
+	background_transform = {
+		{ 0.0f, 10.0f, 0.0f },
 		{ 0.0f, 0.0f, 0.0f },
-		{ 1.0f, 1.0f, 1.0f }
+		{ 50.0f, 50.0f, 50.0f }
 	};
 
 	// 車は Player が Transform を保持するため、Player の setter で設定する。
@@ -90,7 +99,7 @@ void RacingGameScene::update_object_world_matrices()
 	};
 
 	XMStoreFloat4x4(&stage_world, make_world_matrix(stage_transform));
-	XMStoreFloat4x4(&character_world, make_world_matrix(character_transform));
+	XMStoreFloat4x4(&background_world, make_world_matrix(background_transform));
 }
 
 void RacingGameScene::render(ID3D11DeviceContext* immediate_context, float)
@@ -143,7 +152,9 @@ void RacingGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 	// Draw the course first, then draw the moving car on top of it using the depth buffer.
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1));
 	car_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1));
-	//character_mesh->render(immediate_context, character_world, XMFLOAT4(1, 1, 1, 1));
+	// 背景カプセルは内側から見えるよう、背面カリングを無効にして描画する。
+	immediate_context->RSSetState(background_rasterizer_state.Get());
+	background_mesh->render(immediate_context, background_world, XMFLOAT4(1, 1, 1, 1));
 	draw_editor_helpers(immediate_context);
 }
 
@@ -247,7 +258,7 @@ void RacingGameScene::draw_hud()
 	};
 
 	edit_transform("Stage", stage_transform);
-	edit_transform("Character", character_transform);
+	edit_transform("Background", background_transform);
 
 	if (ImGui::CollapsingHeader("Car / Player", ImGuiTreeNodeFlags_DefaultOpen))
 	{
@@ -299,9 +310,10 @@ void RacingGameScene::uninitialize()
 	// framework が管理している Direct3D デバイスが破棄される前に、GPUリソースを使うオブジェクトを解放
 	car_mesh.reset();
 	stage_mesh.reset();
-	character_mesh.reset();
+	background_mesh.reset();
 	debug_cube.reset();
 	scene_constant_buffer.Reset();
+	background_rasterizer_state.Reset();
 	player.reset();
 	if (camera_controller) camera_controller->stop_editor_camera();
 	camera_controller.reset();

@@ -27,7 +27,7 @@ private:
 	// 2つの独立したモデル読み込み用パス。ここに並べておくことで、違いや使い方が一目で比較できる。
 	std::unique_ptr<static_mesh> car_mesh;          // OBJ（静的メッシュ：車など）
 	std::unique_ptr<static_mesh> stage_mesh;        // OBJ（静的メッシュ：コース）
-	std::unique_ptr<skinned_mesh> character_mesh;   // FBX（スキンメッシュ：キャラなど）
+	std::unique_ptr<static_mesh> background_mesh;  // OBJ（背景用の静的メッシュ）
 	std::unique_ptr<cube> debug_cube;               // グリッドと軸の線を描くための簡易プリミティブ
 
 	// シェーダーレジスタ b1: シーン内の全モデルで共有されるデータ。
@@ -79,11 +79,13 @@ private:
 		DirectX::XMFLOAT3 scale{ 1.0f, 1.0f, 1.0f };
 	};
 	ObjectTransform stage_transform;
-	ObjectTransform character_transform;
+	ObjectTransform background_transform;
 
 	Microsoft::WRL::ComPtr<ID3D11Buffer> scene_constant_buffer;
+	// カプセル背景を内側から見るため、背面も描画する専用ラスタライザ。
+	Microsoft::WRL::ComPtr<ID3D11RasterizerState> background_rasterizer_state;
 	DirectX::XMFLOAT4X4 stage_world{};
-	DirectX::XMFLOAT4X4 character_world{};
+	DirectX::XMFLOAT4X4 background_world{};
 	float total_time = 0.0f;
 
 	// 描画関数は毎フレーム同じ順序でこれらを呼び出す。
