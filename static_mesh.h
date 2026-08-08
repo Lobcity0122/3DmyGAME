@@ -20,6 +20,8 @@ public:
 	{
 		DirectX::XMFLOAT4X4 world;
 		DirectX::XMFLOAT4 material_color;
+		// x: metallic, y: roughness。OBJ/MTLのNsからroughnessを作る。
+		DirectX::XMFLOAT4 material_params;
 	};
 	struct subset
 	{
@@ -47,6 +49,7 @@ private:
 		DirectX::XMFLOAT4 Ka{ 0.2f, 0.2f, 0.2f, 1.0f };
 		DirectX::XMFLOAT4 Kd{ 0.8f, 0.8f, 0.8f, 1.0f };
 		DirectX::XMFLOAT4 Ks{ 1.0f, 1.0f, 1.0f, 1.0f };
+		float Ns{ 64.0f };
 		std::wstring texture_filenames[2];
 		ComPtr<ID3D11ShaderResourceView> shader_resource_views[2];
 	};
@@ -63,7 +66,8 @@ public:
 	void render(ID3D11DeviceContext* immediate_context,
 		const DirectX::XMFLOAT4X4& world,
 		const DirectX::XMFLOAT4& material_color,
-		ID3D11PixelShader* alternative_pixel_shader = nullptr
+		ID3D11PixelShader* alternative_pixel_shader = nullptr,
+		bool depth_only = false
 	);
 
 	// バウンディングボックスの最小、最大座標を取得するゲッター

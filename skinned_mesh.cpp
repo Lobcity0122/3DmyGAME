@@ -1,4 +1,4 @@
-ï»¿#include <sstream>
+#include <sstream>
 #include <functional>
 #include <algorithm>
 #include "misc.h"
@@ -8,7 +8,7 @@
 
 using namespace DirectX;
 
-// FBX SDKã®FbxAMatrixã‚’DirectXMathã®XMFLOAT4X4ã«å¤‰æ›ã™ã‚‹é–¢æ•°
+// FBX SDK‚ÌFbxAMatrix‚ğDirectXMath‚ÌXMFLOAT4X4‚É•ÏŠ·‚·‚éŠÖ”
 inline XMFLOAT4X4 to_xmfloat4x4(const FbxAMatrix& fbxamatrix)
 {
 	XMFLOAT4X4 xmfloat4x4;
@@ -22,7 +22,7 @@ inline XMFLOAT4X4 to_xmfloat4x4(const FbxAMatrix& fbxamatrix)
     return xmfloat4x4;
 }
 
-// FBX SDKã®FbxDouble3ã‚’DirectXMathã®XMFLOAT3ã«å¤‰æ›ã™ã‚‹é–¢æ•°
+// FBX SDK‚ÌFbxDouble3‚ğDirectXMath‚ÌXMFLOAT3‚É•ÏŠ·‚·‚éŠÖ”
 inline XMFLOAT3 to_xmfloat3(const FbxDouble3& fbxdouble3)
 {
     XMFLOAT3 xmfloat3;
@@ -32,7 +32,7 @@ inline XMFLOAT3 to_xmfloat3(const FbxDouble3& fbxdouble3)
     return xmfloat3;
 }
 
-// FBX SDKã®FbxDouble4ã‚’DirectXMathã®XMFLOAT4ã«å¤‰æ›ã™ã‚‹é–¢æ•°
+// FBX SDK‚ÌFbxDouble4‚ğDirectXMath‚ÌXMFLOAT4‚É•ÏŠ·‚·‚éŠÖ”
 inline XMFLOAT4 to_xmfloat4(const FbxDouble4& fbxdouble4)
 {
     XMFLOAT4 xmfloat4;
@@ -43,27 +43,27 @@ inline XMFLOAT4 to_xmfloat4(const FbxDouble4& fbxdouble4)
     return xmfloat4;
 }
 
-// ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ï¼šFBXãƒ•ã‚¡ã‚¤ãƒ«ã®ã‚¤ãƒ³ãƒãƒ¼ãƒˆã¨ãƒãƒ¼ãƒ‰ãƒ„ãƒªãƒ¼èµ°æŸ»
+// ƒRƒ“ƒXƒgƒ‰ƒNƒ^FFBXƒtƒ@ƒCƒ‹‚ÌƒCƒ“ƒ|[ƒg‚Æƒm[ƒhƒcƒŠ[‘–¸
 skinned_mesh::skinned_mesh(ID3D11Device* device, const char* fbx_filename, bool triangulate)
 {
-    // 1. FBX SDKå…¨ä½“ã®ç®¡ç†ãƒãƒãƒ¼ã‚¸ãƒ£ãƒ¼ã‚’ä½œæˆ
+    // 1. FBX SDK‘S‘Ì‚ÌŠÇ—ƒ}ƒl[ƒWƒƒ[‚ğì¬
     FbxManager* fbx_manager{ FbxManager::Create() };
 
-    // 2. ã‚·ãƒ¼ãƒ³ãƒ‡ãƒ¼ã‚¿ã‚’æ ¼ç´ã™ã‚‹ã‚³ãƒ³ãƒ†ãƒŠã‚’ä½œæˆ
+    // 2. ƒV[ƒ“ƒf[ƒ^‚ğŠi”[‚·‚éƒRƒ“ƒeƒi‚ğì¬
     FbxScene* fbx_scene{ FbxScene::Create(fbx_manager, "") };
 
-    // 3. ãƒ•ã‚¡ã‚¤ãƒ«ã‚’èª­ã¿è¾¼ã‚€ãŸã‚ã®ã‚¤ãƒ³ãƒãƒ¼ã‚¿ã‚’ä½œæˆãƒ»åˆæœŸåŒ–
+    // 3. ƒtƒ@ƒCƒ‹‚ğ“Ç‚İ‚Ş‚½‚ß‚ÌƒCƒ“ƒ|[ƒ^‚ğì¬E‰Šú‰»
     FbxImporter* fbx_importer{ FbxImporter::Create(fbx_manager, "") };
     bool import_status{ false };
 
     import_status = fbx_importer->Initialize(fbx_filename);
     _ASSERT_EXPR_A(import_status, fbx_importer->GetStatus().GetErrorString());
 
-    // 4. ã‚·ãƒ¼ãƒ³ãƒ‡ãƒ¼ã‚¿ã¸FBXãƒ•ã‚¡ã‚¤ãƒ«ã®å†…å®¹ã‚’ã‚¤ãƒ³ãƒãƒ¼ãƒˆ
+    // 4. ƒV[ƒ“ƒf[ƒ^‚ÖFBXƒtƒ@ƒCƒ‹‚Ì“à—e‚ğƒCƒ“ƒ|[ƒg
     import_status = fbx_importer->Import(fbx_scene);
     _ASSERT_EXPR_A(import_status, fbx_importer->GetStatus().GetErrorString());
 
-    // 5. å¿…è¦ã«å¿œã˜ã¦ãƒãƒªã‚´ãƒ³ã‚’ä¸‰è§’å½¢åŒ–ã™ã‚‹å¤‰æ›å‡¦ç†
+    // 5. •K—v‚É‰‚¶‚Äƒ|ƒŠƒSƒ“‚ğOŠpŒ`‰»‚·‚é•ÏŠ·ˆ—
     FbxGeometryConverter fbx_converter(fbx_manager);
     if (triangulate)
     {
@@ -71,35 +71,35 @@ skinned_mesh::skinned_mesh(ID3D11Device* device, const char* fbx_filename, bool 
         fbx_converter.RemoveBadPolygonsFromMeshes(fbx_scene);
     }
 
-    // 6. ãƒ«ãƒ¼ãƒˆãƒãƒ¼ãƒ‰ã‹ã‚‰å­ãƒãƒ¼ãƒ‰ã‚’å†å¸°çš„ã«å·¡å›ã™ã‚‹ãƒ©ãƒ ãƒ€å¼
+    // 6. ƒ‹[ƒgƒm[ƒh‚©‚çqƒm[ƒh‚ğÄ‹A“I‚É„‰ñ‚·‚éƒ‰ƒ€ƒ_®
     std::function<void(FbxNode*)> traverse{ [&](FbxNode* fbx_node)
     {
-        // ãƒãƒ¼ãƒ‰æƒ…å ±ã‚’æ ¼ç´ã™ã‚‹è¦ç´ ã‚’ãƒªã‚¹ãƒˆã®æœ«å°¾ã«è¿½åŠ 
+        // ƒm[ƒhî•ñ‚ğŠi”[‚·‚é—v‘f‚ğƒŠƒXƒg‚Ì––”ö‚É’Ç‰Á
         scene::node& node{ scene_view.nodes.emplace_back() };
 
-        // ãƒãƒ¼ãƒ‰ã®å±æ€§ã‚¿ã‚¤ãƒ—ï¼ˆãƒ¡ãƒƒã‚·ãƒ¥ã€ãƒœãƒ¼ãƒ³ã€ãƒ©ã‚¤ãƒˆãªã©ï¼‰ã‚’å–å¾—
+        // ƒm[ƒh‚Ì‘®«ƒ^ƒCƒviƒƒbƒVƒ…Aƒ{[ƒ“Aƒ‰ƒCƒg‚È‚Çj‚ğæ“¾
         node.attribute = fbx_node->GetNodeAttribute() ?
             fbx_node->GetNodeAttribute()->GetAttributeType() : FbxNodeAttribute::EType::eUnknown;
 
-        // ãƒãƒ¼ãƒ‰åã¨ä¸€æ„ã®è­˜åˆ¥IDã‚’å–å¾—
+        // ƒm[ƒh–¼‚ÆˆêˆÓ‚Ì¯•ÊID‚ğæ“¾
         node.name = fbx_node->GetName();
         node.unique_id = fbx_node->GetUniqueID();
 
-        // è¦ªãƒãƒ¼ãƒ‰ãŒå­˜åœ¨ã™ã‚‹å ´åˆã¯ã€ã‚·ãƒ¼ãƒ³å†…ã®è¦ªã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚’ç‰¹å®šã—ã¦è¨­å®š
+        // eƒm[ƒh‚ª‘¶İ‚·‚éê‡‚ÍAƒV[ƒ““à‚ÌeƒCƒ“ƒfƒbƒNƒX‚ğ“Á’è‚µ‚Äİ’è
         node.parent_index = scene_view.indexof(fbx_node->GetParent() ?
             fbx_node->GetParent()->GetUniqueID() : 0);
 
-        // å­ãƒãƒ¼ãƒ‰ã®æ•°ã ã‘å†å¸°çš„ã«å‘¼ã³å‡ºã—
+        // qƒm[ƒh‚Ì”‚¾‚¯Ä‹A“I‚ÉŒÄ‚Ño‚µ
         for (int child_index = 0; child_index < fbx_node->GetChildCount(); ++child_index)
         {
             traverse(fbx_node->GetChild(child_index));
         }
     } };
 
-    // ã‚·ãƒ¼ãƒ³ã®ãƒ«ãƒ¼ãƒˆãƒãƒ¼ãƒ‰ã‹ã‚‰ãƒˆãƒ©ãƒãƒ¼ã‚¹ã‚’é–‹å§‹
+    // ƒV[ƒ“‚Ìƒ‹[ƒgƒm[ƒh‚©‚çƒgƒ‰ƒo[ƒX‚ğŠJn
     traverse(fbx_scene->GetRootNode());
 
-    // 7. ãƒ‡ãƒãƒƒã‚°ç”¨ï¼šèª­ã¿è¾¼ã‚“ã ãƒãƒ¼ãƒ‰ãƒ„ãƒªãƒ¼æƒ…å ±ã‚’å‡ºåŠ›ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã«è¡¨ç¤º
+    // 7. ƒfƒoƒbƒO—pF“Ç‚İ‚ñ‚¾ƒm[ƒhƒcƒŠ[î•ñ‚ğo—ÍƒEƒBƒ“ƒhƒE‚É•\¦
 #if 1
     for (const scene::node& node : scene_view.nodes)
     {
@@ -114,18 +114,18 @@ skinned_mesh::skinned_mesh(ID3D11Device* device, const char* fbx_filename, bool 
         OutputDebugStringA(debug_string.str().c_str());
     }
 #endif
-    // ãƒãƒ†ãƒªã‚¢ãƒ«ãƒ»ãƒ¡ãƒƒã‚·ãƒ¥ã®æŠ½å‡º
+    // ƒ}ƒeƒŠƒAƒ‹EƒƒbƒVƒ…‚Ì’Šo
     fetch_materials(fbx_scene, materials);
     fetch_meshes(fbx_scene, meshes);
 
-    // 8. ãƒãƒãƒ¼ã‚¸ãƒ£ãƒ¼ã‚’ç ´æ£„ã™ã‚‹ã“ã¨ã§ã€ã™ã¹ã¦ã®FBXã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ä¸€æ‹¬è§£æ”¾
+    // 8. ƒ}ƒl[ƒWƒƒ[‚ğ”jŠü‚·‚é‚±‚Æ‚ÅA‚·‚×‚Ä‚ÌFBXƒIƒuƒWƒFƒNƒg‚ğˆêŠ‡‰ğ•ú
     fbx_manager->Destroy();
 
-    // COMã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆä½œæˆ
+    // COMƒIƒuƒWƒFƒNƒgì¬
     create_com_objects(device, fbx_filename);
 }
 
-// FBXã‚·ãƒ¼ãƒ³ã‹ã‚‰ãƒ¡ãƒƒã‚·ãƒ¥æƒ…å ±ã‚’æŠ½å‡ºã™ã‚‹é–¢æ•°
+// FBXƒV[ƒ“‚©‚çƒƒbƒVƒ…î•ñ‚ğ’Šo‚·‚éŠÖ”
 void skinned_mesh::fetch_meshes(FbxScene* fbx_scene, std::vector<mesh>& meshes)
 {
     for (const scene::node& node : scene_view.nodes)
@@ -143,13 +143,13 @@ void skinned_mesh::fetch_meshes(FbxScene* fbx_scene, std::vector<mesh>& meshes)
         mesh.name = fbx_node->GetName();
         mesh.node_index = scene_view.indexof(mesh.unique_id);
 
-		// ãƒ¡ãƒƒã‚·ãƒ¥ã®ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã®ã‚°ãƒ­ãƒ¼ãƒãƒ«ãƒˆãƒ©ãƒ³ã‚¹ãƒ•ã‚©ãƒ¼ãƒ ã‚’å–å¾—
+		// ƒƒbƒVƒ…‚ÌƒfƒtƒHƒ‹ƒg‚ÌƒOƒ[ƒoƒ‹ƒgƒ‰ƒ“ƒXƒtƒH[ƒ€‚ğæ“¾
 		mesh.default_global_transform = to_xmfloat4x4(fbx_node->EvaluateGlobalTransform());
 
         std::vector<vertex> vertices;
         std::vector<uint32_t> indices;
 
-		// ãƒ¡ãƒƒã‚·ãƒ¥ã®ã‚µãƒ–ã‚»ãƒƒãƒˆæƒ…å ±ã‚’æŠ½å‡ºã™ã‚‹
+		// ƒƒbƒVƒ…‚ÌƒTƒuƒZƒbƒgî•ñ‚ğ’Šo‚·‚é
         std::vector<mesh::subset>& subsets{ mesh.subsets };
         const int material_count{ fbx_mesh->GetNode()->GetMaterialCount() };
         subsets.resize(material_count > 0 ? material_count : 1);
@@ -160,7 +160,7 @@ void skinned_mesh::fetch_meshes(FbxScene* fbx_scene, std::vector<mesh>& meshes)
             subsets.at(material_index).material_unique_id = fbx_material->GetUniqueID();
         }
 
-		// ãƒãƒ†ãƒªã‚¢ãƒ«ãŒå­˜åœ¨ã™ã‚‹å ´åˆã€å„ã‚µãƒ–ã‚»ãƒƒãƒˆã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹æ•°ã‚’è¨ˆç®—ã™ã‚‹
+		// ƒ}ƒeƒŠƒAƒ‹‚ª‘¶İ‚·‚éê‡AŠeƒTƒuƒZƒbƒg‚ÌƒCƒ“ƒfƒbƒNƒX”‚ğŒvZ‚·‚é
         if (material_count > 0)
         {
             const int polygon_count{ fbx_mesh->GetPolygonCount() };
@@ -175,7 +175,7 @@ void skinned_mesh::fetch_meshes(FbxScene* fbx_scene, std::vector<mesh>& meshes)
                 subset.start_index_location = offset;
                 offset += subset.index_count;
                 // This will be used as counter in the following procedures, reset to zero 
-                subset.index_count = 0; // æ¬¡ã®è¨ˆç®—ç”¨ã«ãƒªã‚»ãƒƒãƒˆ
+                subset.index_count = 0; // Ÿ‚ÌŒvZ—p‚ÉƒŠƒZƒbƒg
             }
         }
         
@@ -183,13 +183,13 @@ void skinned_mesh::fetch_meshes(FbxScene* fbx_scene, std::vector<mesh>& meshes)
         mesh.vertices.resize(polygon_count * 3LL);
         mesh.indices.resize(polygon_count * 3LL);
         
-		// é ‚ç‚¹åº§æ¨™ã®ãƒã‚¦ãƒ³ãƒ‡ã‚£ãƒ³ã‚°ãƒœãƒƒã‚¯ã‚¹ã‚’è¨ˆç®—ã™ã‚‹ãŸã‚ã®åˆæœŸå€¤ã‚’è¨­å®š
+		// ’¸“_À•W‚ÌƒoƒEƒ“ƒfƒBƒ“ƒOƒ{ƒbƒNƒX‚ğŒvZ‚·‚é‚½‚ß‚Ì‰Šú’l‚ğİ’è
         FbxStringList uv_names;
         fbx_mesh->GetUVSetNames(uv_names);
         const FbxVector4 * control_points{ fbx_mesh->GetControlPoints() };
         for (int polygon_index = 0; polygon_index < polygon_count; ++polygon_index)
         {
-			// ãƒãƒ†ãƒªã‚¢ãƒ«ãŒå­˜åœ¨ã™ã‚‹å ´åˆã€å„ãƒãƒªã‚´ãƒ³ã®ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚’å–å¾—ã—ã€å¯¾å¿œã™ã‚‹ã‚µãƒ–ã‚»ãƒƒãƒˆã«ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚’è¿½åŠ 
+			// ƒ}ƒeƒŠƒAƒ‹‚ª‘¶İ‚·‚éê‡AŠeƒ|ƒŠƒSƒ“‚Ìƒ}ƒeƒŠƒAƒ‹ƒCƒ“ƒfƒbƒNƒX‚ğæ“¾‚µA‘Î‰‚·‚éƒTƒuƒZƒbƒg‚ÉƒCƒ“ƒfƒbƒNƒX‚ğ’Ç‰Á
             const int material_index{ material_count > 0 ?
                fbx_mesh->GetElementMaterial()->GetIndexArray().GetAt(polygon_index) : 0 };
             //mesh::subset & subset{ subsets.at(material_index) };
@@ -206,7 +206,7 @@ void skinned_mesh::fetch_meshes(FbxScene* fbx_scene, std::vector<mesh>& meshes)
                vertex.position.y = static_cast<float>(control_points[polygon_vertex][1]);
                vertex.position.z = static_cast<float>(control_points[polygon_vertex][2]);
                
-			   // èª­ã¿è¾¼ã‚“ã é ‚ç‚¹åº§æ¨™ã‹ã‚‰ãƒã‚¦ãƒ³ãƒ‡ã‚£ãƒ³ã‚°ãƒœãƒƒã‚¯ã‚¹ã®æœ€å°ãƒ»æœ€å¤§åº§æ¨™ã‚’æ›´æ–°ã™ã‚‹
+			   // “Ç‚İ‚ñ‚¾’¸“_À•W‚©‚çƒoƒEƒ“ƒfƒBƒ“ƒOƒ{ƒbƒNƒX‚ÌÅ¬EÅ‘åÀ•W‚ğXV‚·‚é
                bounding_box_min.x = (std::min)(bounding_box_min.x, vertex.position.x);
                bounding_box_min.y = (std::min)(bounding_box_min.y, vertex.position.y);
                bounding_box_min.z = (std::min)(bounding_box_min.z, vertex.position.z);
@@ -240,13 +240,13 @@ void skinned_mesh::fetch_meshes(FbxScene* fbx_scene, std::vector<mesh>& meshes)
            }
         }
 
-        // CPUå´ã«ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆç”¨ã¨ã—ã¦é ‚ç‚¹ãƒ»ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚’ä¿æŒ
+        // CPU‘¤‚ÉƒŒƒCƒLƒƒƒXƒg—p‚Æ‚µ‚Ä’¸“_EƒCƒ“ƒfƒbƒNƒX‚ğ•Û
         mesh.cpu_vertices = mesh.vertices;
         mesh.cpu_indices = mesh.indices;
     }
 }
 
-// FBXã‚·ãƒ¼ãƒ³ã‹ã‚‰ãƒãƒ†ãƒªã‚¢ãƒ«æƒ…å ±ã‚’æŠ½å‡ºã™ã‚‹é–¢æ•°ï¼ˆPBR/å…¨ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆè‡ªå‹•å¯¾å¿œç‰ˆï¼‰
+// FBXƒV[ƒ“‚©‚çƒ}ƒeƒŠƒAƒ‹î•ñ‚ğ’Šo‚·‚éŠÖ”iPBR/‘SƒtƒH[ƒ}ƒbƒg©“®‘Î‰”Åj
 void skinned_mesh::fetch_materials(FbxScene* fbx_scene,
     std::unordered_map<uint64_t, material>& materials)
 {
@@ -268,7 +268,7 @@ void skinned_mesh::fetch_materials(FbxScene* fbx_scene,
             material.name = fbx_material->GetName();
             material.unique_id = fbx_material->GetUniqueID();
 
-            // 1. åŸºæœ¬è‰²ã®å–å¾—ï¼ˆãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯ç”¨ï¼‰
+            // 1. Šî–{F‚Ìæ“¾iƒtƒH[ƒ‹ƒoƒbƒN—pj
             FbxProperty fbx_property = fbx_material->FindProperty(FbxSurfaceMaterial::sDiffuse);
             if (fbx_property.IsValid())
             {
@@ -276,7 +276,7 @@ void skinned_mesh::fetch_materials(FbxScene* fbx_scene,
                 material.Kd = { static_cast<float>(color[0]), static_cast<float>(color[1]), static_cast<float>(color[2]), 1.0f };
             }
 
-            // 2. ã€æ ¸å¿ƒã€‘ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£åã«ä¾å­˜ã›ãšã€ãƒãƒ†ãƒªã‚¢ãƒ«ã«ç´ä»˜ãå…¨ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’ç›´æ¥æ ¹ã“ããå–å¾—ã™ã‚‹
+            // 2. yŠjSzƒvƒƒpƒeƒB–¼‚ÉˆË‘¶‚¹‚¸Aƒ}ƒeƒŠƒAƒ‹‚É•R•t‚­‘SƒeƒNƒXƒ`ƒƒ‚ğ’¼Úª‚±‚»‚¬æ“¾‚·‚é
             int texture_count = fbx_material->GetSrcObjectCount<FbxFileTexture>();
             for (int i = 0; i < texture_count; ++i)
             {
@@ -287,7 +287,7 @@ void skinned_mesh::fetch_materials(FbxScene* fbx_scene,
                     std::string abs_name = fbx_texture->GetFileName();
                     std::string tex_name = !rel_name.empty() ? rel_name : abs_name;
 
-                    // ãƒãƒ¼ãƒãƒ«ãƒãƒƒãƒ—ï¼ˆNormalï¼‰ä»¥å¤–ã®ã‚«ãƒ©ãƒ¼ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’å„ªå…ˆçš„ã«ã‚»ãƒƒãƒˆã™ã‚‹
+                    // ƒm[ƒ}ƒ‹ƒ}ƒbƒviNormaljˆÈŠO‚ÌƒJƒ‰[ƒeƒNƒXƒ`ƒƒ‚ğ—Dæ“I‚ÉƒZƒbƒg‚·‚é
                     if (material.texture_filenames[0].empty() ||
                         (tex_name.find("Normal") == std::string::npos && tex_name.find("normal") == std::string::npos))
                     {
@@ -302,7 +302,7 @@ void skinned_mesh::fetch_materials(FbxScene* fbx_scene,
     materials.emplace();
 }
 
-// GPUãƒãƒƒãƒ•ã‚¡ï¼ˆé ‚ç‚¹/ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ï¼‰ç”Ÿæˆ
+// GPUƒoƒbƒtƒ@i’¸“_/ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@j¶¬
 void skinned_mesh::create_com_objects(ID3D11Device* device, const char* fbx_filename)
 {
     for (mesh& mesh : meshes)
@@ -330,7 +330,7 @@ void skinned_mesh::create_com_objects(ID3D11Device* device, const char* fbx_file
             mesh.index_buffer.ReleaseAndGetAddressOf());
         _ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr));
 
-    #if 0 // â€»ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆã‚’ä½¿ã†å ´åˆã¯ã“ã“ã¯0ã‹ã‚³ãƒ¡ãƒ³ãƒˆã‚¢ã‚¦ãƒˆã—ã¦ãŠãã€‚(vertices)
+    #if 0 // ¦ƒŒƒCƒLƒƒƒXƒg‚ğg‚¤ê‡‚Í‚±‚±‚Í0‚©ƒRƒƒ“ƒgƒAƒEƒg‚µ‚Ä‚¨‚­B(vertices)
         mesh.vertices.clear();
         mesh.indices.clear();
     #endif
@@ -354,7 +354,7 @@ void skinned_mesh::create_com_objects(ID3D11Device* device, const char* fbx_file
     hr = device->CreateBuffer(&buffer_desc, nullptr, constant_buffer.ReleaseAndGetAddressOf());
     _ASSERT_EXPR(SUCCEEDED(hr), hr_trace(hr));
 
-    // ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒªã‚½ãƒ¼ã‚¹ãƒ“ãƒ¥ãƒ¼ç”Ÿæˆã‚³ãƒ¼ãƒ‰ï¼ˆå¼·åŒ–ç‰ˆå¤šæ®µæ¤œç´¢ï¼‰
+    // ƒVƒF[ƒ_[ƒŠƒ\[ƒXƒrƒ…[¶¬ƒR[ƒhi‹­‰»”Å‘½’iŒŸõj
     for (auto& pair : materials)
     {
         material& mat = pair.second;
@@ -363,16 +363,16 @@ void skinned_mesh::create_com_objects(ID3D11Device* device, const char* fbx_file
         if (!mat.texture_filenames[0].empty())
         {
             std::filesystem::path fbx_path(fbx_filename);
-            std::filesystem::path fbx_dir = fbx_path.parent_path(); // FBXãŒã‚ã‚‹ãƒ•ã‚©ãƒ«ãƒ€
+            std::filesystem::path fbx_dir = fbx_path.parent_path(); // FBX‚ª‚ ‚éƒtƒHƒ‹ƒ_
             std::filesystem::path raw_tex_path(mat.texture_filenames[0]);
 
-            // æ¢ç´¢ãƒ‘ã‚¿ãƒ¼ãƒ³å€™è£œã®ãƒªã‚¹ãƒˆä½œæˆ
+            // ’Tõƒpƒ^[ƒ“Œó•â‚ÌƒŠƒXƒgì¬
             std::vector<std::filesystem::path> search_paths = {
-                fbx_dir / raw_tex_path,                                    // ãƒ‘ã‚¿ãƒ¼ãƒ³1: FBXå†…éƒ¨ã®ç›¸å¯¾ãƒ‘ã‚¹ã‚’ãã®ã¾ã¾çµåˆ
-                fbx_dir / raw_tex_path.filename(),                        // ãƒ‘ã‚¿ãƒ¼ãƒ³2: FBXã¨åŒã˜ãƒ•ã‚©ãƒ«ãƒ€å†…ï¼ˆç”»åƒåã®ã¿ï¼‰
-                fbx_dir / "textures" / raw_tex_path.filename(),            // ãƒ‘ã‚¿ãƒ¼ãƒ³3: FBXãƒ•ã‚©ãƒ«ãƒ€å†…ã® textures/ ãƒ•ã‚©ãƒ«ãƒ€
-                fbx_dir / "Textures" / raw_tex_path.filename(),            // ãƒ‘ã‚¿ãƒ¼ãƒ³4: FBXãƒ•ã‚©ãƒ«ãƒ€å†…ã® Textures/ ãƒ•ã‚©ãƒ«ãƒ€
-                raw_tex_path                                               // ãƒ‘ã‚¿ãƒ¼ãƒ³5: çµ¶å¯¾ãƒ‘ã‚¹
+                fbx_dir / raw_tex_path,                                    // ƒpƒ^[ƒ“1: FBX“à•”‚Ì‘Š‘ÎƒpƒX‚ğ‚»‚Ì‚Ü‚ÜŒ‹‡
+                fbx_dir / raw_tex_path.filename(),                        // ƒpƒ^[ƒ“2: FBX‚Æ“¯‚¶ƒtƒHƒ‹ƒ_“ài‰æ‘œ–¼‚Ì‚İj
+                fbx_dir / "textures" / raw_tex_path.filename(),            // ƒpƒ^[ƒ“3: FBXƒtƒHƒ‹ƒ_“à‚Ì textures/ ƒtƒHƒ‹ƒ_
+                fbx_dir / "Textures" / raw_tex_path.filename(),            // ƒpƒ^[ƒ“4: FBXƒtƒHƒ‹ƒ_“à‚Ì Textures/ ƒtƒHƒ‹ƒ_
+                raw_tex_path                                               // ƒpƒ^[ƒ“5: â‘ÎƒpƒX
             };
 
             std::filesystem::path valid_path;
@@ -385,7 +385,7 @@ void skinned_mesh::create_com_objects(ID3D11Device* device, const char* fbx_file
                 }
             }
 
-            // ç”»åƒãŒè¦‹ã¤ã‹ã£ãŸå ´åˆã¯ãƒ­ãƒ¼ãƒ‰ã‚’è©¦ã¿ã‚‹
+            // ‰æ‘œ‚ªŒ©‚Â‚©‚Á‚½ê‡‚Íƒ[ƒh‚ğ‚İ‚é
             if (!valid_path.empty())
             {
                 D3D11_TEXTURE2D_DESC texture2d_desc{};
@@ -399,7 +399,7 @@ void skinned_mesh::create_com_objects(ID3D11Device* device, const char* fbx_file
                 if (SUCCEEDED(hr_tex) && mat.shader_resource_views[0] != nullptr)
                 {
                     is_loaded = true;
-                    // ãƒ‡ãƒãƒƒã‚°å‡ºåŠ›
+                    // ƒfƒoƒbƒOo—Í
                     std::string log = "=== [Texture Loaded SUCCESS] === " + valid_path.string() + "\n";
                     OutputDebugStringA(log.c_str());
                 }
@@ -412,7 +412,7 @@ void skinned_mesh::create_com_objects(ID3D11Device* device, const char* fbx_file
             }
         }
 
-        // ç”»åƒãŒè¦‹ã¤ã‹ã‚‰ãªã‹ã£ãŸãƒ»èª­ã¿è¾¼ã‚ãªã‹ã£ãŸå ´åˆã¯ãƒ€ãƒŸãƒ¼ï¼ˆç™½å˜è‰²ï¼‰ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’ä½œæˆ
+        // ‰æ‘œ‚ªŒ©‚Â‚©‚ç‚È‚©‚Á‚½E“Ç‚İ‚ß‚È‚©‚Á‚½ê‡‚Íƒ_ƒ~[i”’’PFjƒeƒNƒXƒ`ƒƒ‚ğì¬
         if (!is_loaded)
         {
             make_dummy_texture(
@@ -424,7 +424,7 @@ void skinned_mesh::create_com_objects(ID3D11Device* device, const char* fbx_file
         }
     }
 
-    //// ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒªã‚½ãƒ¼ã‚¹ãƒ“ãƒ¥ãƒ¼ç”Ÿæˆã‚³ãƒ¼ãƒ‰ã‚’è¿½åŠ 
+    //// ƒVƒF[ƒ_[ƒŠƒ\[ƒXƒrƒ…[¶¬ƒR[ƒh‚ğ’Ç‰Á
     //for (std::unordered_map<uint64_t, material>::iterator iterator = materials.begin();
     //    iterator != materials.end(); ++iterator)
     //{
@@ -444,11 +444,11 @@ void skinned_mesh::create_com_objects(ID3D11Device* device, const char* fbx_file
     //}
 }
 
-// æç”»é–¢æ•°
+// •`‰æŠÖ”
 void skinned_mesh::render(ID3D11DeviceContext* immediate_context,
     const XMFLOAT4X4& world, const XMFLOAT4& material_color)
 {
-	// ãƒ¡ãƒƒã‚·ãƒ¥ã”ã¨ã«æç”»ã™ã‚‹
+	// ƒƒbƒVƒ…‚²‚Æ‚É•`‰æ‚·‚é
     for (const mesh& mesh : meshes)
     {
         uint32_t stride{ sizeof(vertex) };
@@ -461,15 +461,17 @@ void skinned_mesh::render(ID3D11DeviceContext* immediate_context,
         immediate_context->VSSetShader(vertex_shader.Get(), nullptr, 0);
         immediate_context->PSSetShader(pixel_shader.Get(), nullptr, 0);
         
-		// å®šæ•°ãƒãƒƒãƒ•ã‚¡ã«ãƒ¯ãƒ¼ãƒ«ãƒ‰è¡Œåˆ—ã¨ãƒãƒ†ãƒªã‚¢ãƒ«ã‚«ãƒ©ãƒ¼ã‚’è¨­å®š
+		// ’è”ƒoƒbƒtƒ@‚Éƒ[ƒ‹ƒhs—ñ‚Æƒ}ƒeƒŠƒAƒ‹ƒJƒ‰[‚ğİ’è
         constants data;
         XMStoreFloat4x4(&data.world, XMLoadFloat4x4(&mesh.default_global_transform) * XMLoadFloat4x4(&world));
 
-		// ã‚µãƒ–ã‚»ãƒƒãƒˆã”ã¨ã«æç”»ã™ã‚‹
+		// ƒTƒuƒZƒbƒg‚²‚Æ‚É•`‰æ‚·‚é
         for (const mesh::subset& subset : mesh.subsets)
         {
             const material & material{ materials.at(subset.material_unique_id) };
             XMStoreFloat4(&data.material_color, XMLoadFloat4(&material_color) * XMLoadFloat4(&material.Kd));
+			// FBX‘¤‚ÌPBR’l‚Í‚Ü‚¾“Ç‚İ‚Ü‚È‚¢‚½‚ßAˆÀ’è‚µ‚½”ñ‹à‘®E’†’ö“x‚Ì‘e‚³‚ğŠù’è’l‚É‚·‚éB
+			data.material_params = { 0.0f, 0.55f, 0.0f, 0.0f };
             immediate_context->UpdateSubresource(constant_buffer.Get(), 0, 0, &data, 0, 0);
             immediate_context->VSSetConstantBuffers(0, 1, constant_buffer.GetAddressOf());
             immediate_context->PSSetShaderResources(0, 1, material.shader_resource_views[0].GetAddressOf());

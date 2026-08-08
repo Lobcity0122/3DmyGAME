@@ -1,7 +1,8 @@
-ï»¿#include <filesystem>
+#include <filesystem>
 #include <string>
 #include <fstream>
 #include <algorithm>
+#include <cmath>
 #include "static_mesh.h"
 #include "misc.h"
 #include "shader.h"
@@ -12,34 +13,34 @@ using std::wstring;
 
 static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
 {
-    // é ‚ç‚¹ãƒ‡ãƒ¼ã‚¿é…åˆ—ã¨ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒ‡ãƒ¼ã‚¿é…åˆ—
+    // ’¸“_ƒf[ƒ^”z—ñ‚ÆƒCƒ“ƒfƒbƒNƒXƒf[ƒ^”z—ñ
     std::vector<vertex> vertices;
     std::vector<uint32_t> indices;
     uint32_t current_index{ 0 };
 
-    // objãƒ•ã‚¡ã‚¤ãƒ«ã‹ã‚‰èª­ã¿è¾¼ã‚“ã é ‚ç‚¹åº§æ¨™ã¨æ³•ç·šã‚’æ ¼ç´ã™ã‚‹ãŸã‚ã®å¤‰æ•°
+    // objƒtƒ@ƒCƒ‹‚©‚ç“Ç‚İ‚ñ‚¾’¸“_À•W‚Æ–@ü‚ğŠi”[‚·‚é‚½‚ß‚Ì•Ï”
     std::vector<XMFLOAT3> positions;
     std::vector<XMFLOAT3> normals;
 
-    // objãƒ•ã‚¡ã‚¤ãƒ«ãƒ‘ãƒ¼ã‚µãƒ¼éƒ¨ã§ãƒ†ã‚¯ã‚¹ãƒãƒ£åº§æ¨™ã¨ãƒãƒ†ãƒªã‚¢ãƒ«ãƒ•ã‚¡ã‚¤ãƒ«åã‚’å–å¾—ã™ã‚‹
+    // objƒtƒ@ƒCƒ‹ƒp[ƒT[•”‚ÅƒeƒNƒXƒ`ƒƒÀ•W‚Æƒ}ƒeƒŠƒAƒ‹ƒtƒ@ƒCƒ‹–¼‚ğæ“¾‚·‚é
     std::vector<XMFLOAT2> texcoords;
     std::vector<wstring> mtl_filenames;
 
     std::wifstream fin(obj_filename);
     _ASSERT_EXPR(fin, L"'OBJ file not found.");
-    wchar_t command[256]; // èª­ã¿è¾¼ã‚“ã ãƒ•ã‚¡ã‚¤ãƒ«ã®1è¡Œ
+    wchar_t command[256]; // “Ç‚İ‚ñ‚¾ƒtƒ@ƒCƒ‹‚Ì1s
 
     while (fin)
     {
-        fin >> command; // 1è¡Œç›®ã®ã‚³ãƒãƒ³ãƒ‰ã‚’èª­ã¿è¾¼ã‚€
-        if (0 == wcscmp(command, L"v")) // é ‚ç‚¹ä½ç½®ã®èª­ã¿è¾¼ã¿
+        fin >> command; // 1s–Ú‚ÌƒRƒ}ƒ“ƒh‚ğ“Ç‚İ‚Ş
+        if (0 == wcscmp(command, L"v")) // ’¸“_ˆÊ’u‚Ì“Ç‚İ‚İ
         {
-            // é ‚ç‚¹åº§æ¨™ã®èª­ã¿è¾¼ã¿
+            // ’¸“_À•W‚Ì“Ç‚İ‚İ
             float x, y, z;
             fin >> x >> y >> z;
             positions.push_back({ x, y, z });
 
-			// èª­ã¿è¾¼ã‚“ã é ‚ç‚¹åº§æ¨™(xã€yã€z)ã‚’ä½¿ã£ã¦ãƒã‚¦ãƒ³ãƒ‡ã‚£ãƒ³ã‚°ãƒœãƒƒã‚¯ã‚¹ã®æœ€å°åº§æ¨™ã¨æœ€å¤§åº§æ¨™ã‚’æ›´æ–°ã™ã‚‹
+			// “Ç‚İ‚ñ‚¾’¸“_À•W(xAyAz)‚ğg‚Á‚ÄƒoƒEƒ“ƒfƒBƒ“ƒOƒ{ƒbƒNƒX‚ÌÅ¬À•W‚ÆÅ‘åÀ•W‚ğXV‚·‚é
 			bounding_box_min.x = (std::min)(bounding_box_min.x, x);
 			bounding_box_min.y = (std::min)(bounding_box_min.y, y);
 			bounding_box_min.z = (std::min)(bounding_box_min.z, z);
@@ -51,7 +52,7 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
         }
         else if (0 == wcscmp(command, L"vn"))
         {
-            // æ³•ç·šã®èª­ã¿è¾¼ã¿
+            // –@ü‚Ì“Ç‚İ‚İ
             float i, j, k;
             fin >> i >> j >> k;
             normals.push_back({ i, j, k });
@@ -66,7 +67,7 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
         }
         else if (0 == wcscmp(command, L"f"))
         {
-            // ä¸‰è§’å½¢(é¢)ã®èª­ã¿è¾¼ã¿
+            // OŠpŒ`(–Ê)‚Ì“Ç‚İ‚İ
             for (size_t i = 0; i < 3; i++)
             {
                 vertex vertex;
@@ -108,7 +109,7 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
 		}
         else
         {
-            // ãã‚Œä»¥å¤–ã®è¡Œã¯ç„¡è¦–ã™ã‚‹
+            // ‚»‚êˆÈŠO‚Ìs‚Í–³‹‚·‚é
             fin.ignore(1024, L'\n');
         }
     }
@@ -121,10 +122,10 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
 
     fin.close();
 
-	// MTLãƒ•ã‚¡ã‚¤ãƒ«ã‚’é–‹ãå‰ã«ç¢ºèªã™ã‚‹
+	// MTLƒtƒ@ƒCƒ‹‚ğŠJ‚­‘O‚ÉŠm”F‚·‚é
     if(mtl_filenames.empty())
     {
-		// ã‚¨ãƒ©ãƒ¼ãƒãƒ³ãƒ‰ãƒªãƒ³ã‚°(ãƒ­ã‚°oræ—¢å®šãƒãƒ†ãƒªã‚¢ãƒ«)
+		// ƒGƒ‰[ƒnƒ“ƒhƒŠƒ“ƒO(ƒƒOorŠù’èƒ}ƒeƒŠƒAƒ‹)
         return;
     }
    
@@ -169,35 +170,41 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
             materials.rbegin()->texture_filenames[1] = path;
             fin.ignore(1024, L'\n');
         }
-        else if (0 == wcscmp(command, L"Kd"))
+		else if (0 == wcscmp(command, L"Kd"))
         {
             float r, g, b;
             fin >> r >> g >> b;
-            materials.rbegin()->Kd = { r, g, b, 1 };
-            fin.ignore(1024, L'\n');
-        }
+			materials.rbegin()->Kd = { r, g, b, 1 };
+			fin.ignore(1024, L'\n');
+		}
+		else if (0 == wcscmp(command, L"Ns"))
+		{
+			// OBJ/MTL‚ÌPhongŒõ‘ò’lBŒã‚ÅPBR‚Ìroughness‚Ö•ÏŠ·‚·‚éB
+			fin >> materials.rbegin()->Ns;
+			fin.ignore(1024, L'\n');
+		}
         else
         {
             fin.ignore(1024, L'\n');
         }
     }
 
-    fin.close();  // ãƒ•ã‚¡ã‚¤ãƒ«ã‚’é–‰ã˜ã‚‹
+    fin.close();  // ƒtƒ@ƒCƒ‹‚ğ•Â‚¶‚é
 
-    // ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®ãƒ­ãƒ¼ãƒ‰ã€ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒªã‚½ãƒ¼ã‚¹ãƒ“ãƒ¥ãƒ¼ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®ç”Ÿæˆã‚’ãŠã“ãªã†
+    // ƒeƒNƒXƒ`ƒƒ‚Ìƒ[ƒhAƒVƒF[ƒ_[ƒŠƒ\[ƒXƒrƒ…[ƒIƒuƒWƒFƒNƒg‚Ì¶¬‚ğ‚¨‚±‚È‚¤
     D3D11_TEXTURE2D_DESC texture2d_desc{};
     /*load_texture_from_file(device, texture_filename.c_str(),
         shader_resource_view.GetAddressOf(), &texture2d_desc);*/
     for (material& material : materials)
     {
-        // ã‚«ãƒ©ãƒ¼ãƒãƒƒãƒ—ã®ãƒ­ãƒ¼ãƒ‰ è¦ç´ [0]
+        // ƒJƒ‰[ƒ}ƒbƒv‚Ìƒ[ƒh —v‘f[0]
         if (!material.texture_filenames[0].empty())
         {
             load_texture_from_file(device, material.texture_filenames[0].c_str(),
                 material.shader_resource_views[0].GetAddressOf(), &texture2d_desc);
         }
 
-        // ãƒãƒ³ãƒ—ãƒãƒƒãƒ—ã®ãƒ­ãƒ¼ãƒ‰ è¦ç´ [1]
+        // ƒoƒ“ƒvƒ}ƒbƒv‚Ìƒ[ƒh —v‘f[1]
         if (!material.texture_filenames[1].empty())
         {
             load_texture_from_file(device, material.texture_filenames[1].c_str(),
@@ -244,7 +251,7 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
 
     HRESULT hr{ S_OK };
 
-    // å®šæ•°ãƒãƒƒãƒ•ã‚¡ä½œæˆ
+    // ’è”ƒoƒbƒtƒ@ì¬
     D3D11_BUFFER_DESC buffer_desc{};
     buffer_desc.ByteWidth = sizeof(constants);
     buffer_desc.Usage = D3D11_USAGE_DEFAULT;
@@ -285,7 +292,8 @@ void static_mesh::create_com_buffers(ID3D11Device * device,
 void static_mesh::render(ID3D11DeviceContext * immediate_context,
     const DirectX::XMFLOAT4X4 & world,
     const DirectX::XMFLOAT4 & material_color,
-    ID3D11PixelShader* alternative_pixel_shader
+    ID3D11PixelShader* alternative_pixel_shader,
+    bool depth_only
 )
 {
     uint32_t stride{ sizeof(vertex) };
@@ -298,7 +306,12 @@ void static_mesh::render(ID3D11DeviceContext * immediate_context,
     immediate_context->VSSetShader(vertex_shader.Get(), nullptr, 0);
     //immediate_context->PSSetShader(pixel_shader.Get(), nullptr, 0);
 
-    if (alternative_pixel_shader != nullptr)
+    if (depth_only)
+    {
+        // ƒVƒƒƒhƒEƒ}ƒbƒv•`‰æ‚Å‚ÍF‚Í•s—vB[“xƒoƒbƒtƒ@‚¾‚¯‚ğXV‚·‚éB
+        immediate_context->PSSetShader(nullptr, nullptr, 0);
+    }
+    else if (alternative_pixel_shader != nullptr)
     {
         immediate_context->PSSetShader(alternative_pixel_shader, nullptr, 0);
     }
@@ -307,23 +320,33 @@ void static_mesh::render(ID3D11DeviceContext * immediate_context,
         immediate_context->PSSetShader(pixel_shader.Get(), nullptr, 0);
     }
 
-    for (const material& material : materials)
-    {
-        // ã‚«ãƒ©ãƒ¼ãƒãƒƒãƒ—ã‚’ãƒ”ã‚¯ã‚»ãƒ«ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã®ã€ã‚¹ãƒ­ãƒƒãƒˆ0ã€‘ã«ã‚»ãƒƒãƒˆ
-        immediate_context->PSSetShaderResources(0, 1, material.shader_resource_views[0].GetAddressOf());
+	for (const material& material : materials)
+	{
+		if (!depth_only)
+		{
+			// ƒJƒ‰[ƒ}ƒbƒv‚ğƒsƒNƒZƒ‹ƒVƒF[ƒ_[‚ÌyƒXƒƒbƒg0z‚ÉƒZƒbƒg
+			immediate_context->PSSetShaderResources(0, 1, material.shader_resource_views[0].GetAddressOf());
 
-        // ãƒãƒ³ãƒ—ãƒãƒƒãƒ—ã‚’ãƒ”ã‚¯ã‚»ãƒ«ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã®ã€ã‚¹ãƒ­ãƒƒãƒˆ1ã€‘ã«ã‚»ãƒƒãƒˆ
-        immediate_context->PSSetShaderResources(1, 1, material.shader_resource_views[1].GetAddressOf());
+			// ƒoƒ“ƒvƒ}ƒbƒv‚ğƒsƒNƒZƒ‹ƒVƒF[ƒ_[‚ÌyƒXƒƒbƒg1z‚ÉƒZƒbƒg
+			immediate_context->PSSetShaderResources(1, 1, material.shader_resource_views[1].GetAddressOf());
+		}
 
-        constants data{ world, material_color };
-        XMStoreFloat4(&data.material_color, XMLoadFloat4(&material_color) * XMLoadFloat4(&material.Kd));
+		constants data{};
+		data.world = world;
+		XMStoreFloat4(&data.material_color, XMLoadFloat4(&material_color) * XMLoadFloat4(&material.Kd));
+		// Phong‚ÌNs‚ª‘å‚«‚¢‚Ù‚Ç•\–Ê‚ÍŠŠ‚ç‚©BPBR‚Ìroughness‚Í‹t‚ÌŠÖŒW‚É‚È‚éB
+		const float roughness = (std::max)(0.08f, (std::min)(1.0f, std::sqrt(2.0f / (material.Ns + 2.0f))));
+		data.material_params = { 0.0f, roughness, 0.0f, 0.0f };
         immediate_context->UpdateSubresource(constant_buffer.Get(), 0, 0, &data, 0, 0);
         
-        // å®šæ•°ãƒãƒƒãƒ•ã‚¡ã‚’é ‚ç‚¹ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã«ãƒã‚¤ãƒ³ãƒ‰ã™ã‚‹
+        // ’è”ƒoƒbƒtƒ@‚ğ’¸“_ƒVƒF[ƒ_[‚ÉƒoƒCƒ“ƒh‚·‚é
         immediate_context->VSSetConstantBuffers(0, 1, constant_buffer.GetAddressOf());
 
-        // ãƒ”ã‚¯ã‚»ãƒ«ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã«ã‚‚åŒã˜å®šæ•°ãƒãƒƒãƒ•ã‚¡ã‚’ãƒã‚¤ãƒ³ãƒ‰ã™ã‚‹
-        immediate_context->PSSetConstantBuffers(0, 1, constant_buffer.GetAddressOf());
+		if (!depth_only)
+		{
+			// ƒsƒNƒZƒ‹ƒVƒF[ƒ_[‚É‚à“¯‚¶’è”ƒoƒbƒtƒ@‚ğƒoƒCƒ“ƒh‚·‚é
+			immediate_context->PSSetConstantBuffers(0, 1, constant_buffer.GetAddressOf());
+		}
 
         for (const subset& subset : subsets)
         {

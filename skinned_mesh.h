@@ -60,6 +60,7 @@ public:
 	{
 		DirectX::XMFLOAT4X4 world;
 		DirectX::XMFLOAT4 material_color;
+		DirectX::XMFLOAT4 material_params;
 	};
 
 	// skinned_meshクラスにメッシュ構造体

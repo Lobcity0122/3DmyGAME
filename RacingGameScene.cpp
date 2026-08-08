@@ -25,6 +25,46 @@ bool RacingGameScene::initialize(ID3D11Device* device)
 	buffer_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	if (FAILED(device->CreateBuffer(&buffer_desc, nullptr, scene_constant_buffer.GetAddressOf()))) return false;
 
+	// 方向ライトの影を保存する深度テクスチャ。深度ビューとシェーダー読み込みビューを同じテクスチャから作る。
+	D3D11_TEXTURE2D_DESC shadow_texture_desc{};
+	shadow_texture_desc.Width = 2048;
+	shadow_texture_desc.Height = 2048;
+	shadow_texture_desc.MipLevels = 1;
+	shadow_texture_desc.ArraySize = 1;
+	shadow_texture_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+	shadow_texture_desc.SampleDesc.Count = 1;
+	shadow_texture_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+	if (FAILED(device->CreateTexture2D(&shadow_texture_desc, nullptr, shadow_depth_texture.GetAddressOf()))) return false;
+
+	D3D11_DEPTH_STENCIL_VIEW_DESC shadow_dsv_desc{};
+	shadow_dsv_desc.Format = DXGI_FORMAT_D32_FLOAT;
+	shadow_dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	if (FAILED(device->CreateDepthStencilView(shadow_depth_texture.Get(), &shadow_dsv_desc,
+		shadow_depth_stencil_view.GetAddressOf()))) return false;
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC shadow_srv_desc{};
+	shadow_srv_desc.Format = DXGI_FORMAT_R32_FLOAT;
+	shadow_srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	shadow_srv_desc.Texture2D.MipLevels = 1;
+	if (FAILED(device->CreateShaderResourceView(shadow_depth_texture.Get(), &shadow_srv_desc,
+		shadow_shader_resource_view.GetAddressOf()))) return false;
+
+	D3D11_SAMPLER_DESC shadow_sampler_desc{};
+	shadow_sampler_desc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+	shadow_sampler_desc.AddressU = shadow_sampler_desc.AddressV = shadow_sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadow_sampler_desc.BorderColor[0] = shadow_sampler_desc.BorderColor[1] = shadow_sampler_desc.BorderColor[2] = shadow_sampler_desc.BorderColor[3] = 1.0f;
+	shadow_sampler_desc.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
+	if (FAILED(device->CreateSamplerState(&shadow_sampler_desc, shadow_sampler_state.GetAddressOf()))) return false;
+
+	D3D11_RASTERIZER_DESC shadow_rasterizer_desc{};
+	shadow_rasterizer_desc.FillMode = D3D11_FILL_SOLID;
+	shadow_rasterizer_desc.CullMode = D3D11_CULL_BACK;
+	shadow_rasterizer_desc.DepthBias = 1000;
+	shadow_rasterizer_desc.SlopeScaledDepthBias = 1.0f;
+	shadow_rasterizer_desc.DepthBiasClamp = 0.0f;
+	shadow_rasterizer_desc.DepthClipEnable = TRUE;
+	if (FAILED(device->CreateRasterizerState(&shadow_rasterizer_desc, shadow_rasterizer_state.GetAddressOf()))) return false;
+
 	// 通常のモデルは背面を省略するが、背景はカプセルの内側から見るので両面を描画する。
 	D3D11_RASTERIZER_DESC background_rasterizer_desc{};
 	background_rasterizer_desc.FillMode = D3D11_FILL_SOLID;
@@ -71,7 +111,8 @@ void RacingGameScene::configure_object_transforms()
 
 	// 背景カプセルは原点を中心に大きく配置。ステージ全体を内部に収めるためのスケール。
 	background_transform = {
-		{ 0.0f, 10.0f, 0.0f },
+		// Blenderのグリッド中心とゲームのワールド原点を一致させる。
+		{ 0.0f, 0.0f, 0.0f },
 		{ 0.0f, 0.0f, 0.0f },
 		{ 50.0f, 50.0f, 50.0f }
 	};
@@ -105,9 +146,59 @@ void RacingGameScene::update_object_world_matrices()
 void RacingGameScene::render(ID3D11DeviceContext* immediate_context, float)
 {
 	// 固定された描画パイプライン順序: 共有カメラ/ライトデータ設定 -> 3Dモデル描画 -> UIコマンド発行
+	render_shadow_map(immediate_context);
 	update_scene_constants(immediate_context);
 	draw_models(immediate_context);
 	draw_hud();
+}
+
+XMMATRIX RacingGameScene::calculate_light_view_projection() const
+{
+	// 現段階ではステージ全体を覆う1枚のシャドウマップ。後で近景/中景/遠景に分けるCSMへ拡張できる。
+	const XMVECTOR target = XMVectorSet(0.0f, 5.0f, 0.0f, 1.0f);
+	const XMVECTOR direction = XMVector3Normalize(XMLoadFloat3(&light_settings.direction));
+	const XMVECTOR eye = XMVectorSubtract(target, XMVectorScale(direction, 45.0f));
+	const XMMATRIX view = XMMatrixLookAtLH(eye, target, XMVectorSet(0, 1, 0, 0));
+	const XMMATRIX projection = XMMatrixOrthographicLH(60.0f, 60.0f, 0.1f, 120.0f);
+	return view * projection;
+}
+
+void RacingGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
+{
+	if (!light_settings.use_shadows || light_settings.use_point_light) return;
+
+	// メイン画面のレンダーターゲットとビューポートを保存して、影描画後に必ず戻す。
+	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> previous_rtv;
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> previous_dsv;
+	immediate_context->OMGetRenderTargets(1, previous_rtv.GetAddressOf(), previous_dsv.GetAddressOf());
+	D3D11_VIEWPORT previous_viewport{};
+	UINT viewport_count = 1;
+	immediate_context->RSGetViewports(&viewport_count, &previous_viewport);
+	Microsoft::WRL::ComPtr<ID3D11RasterizerState> previous_rasterizer;
+	immediate_context->RSGetState(previous_rasterizer.GetAddressOf());
+
+	D3D11_VIEWPORT shadow_viewport{};
+	shadow_viewport.Width = 2048.0f;
+	shadow_viewport.Height = 2048.0f;
+	shadow_viewport.MinDepth = 0.0f;
+	shadow_viewport.MaxDepth = 1.0f;
+	immediate_context->OMSetRenderTargets(0, nullptr, shadow_depth_stencil_view.Get());
+	immediate_context->RSSetViewports(1, &shadow_viewport);
+	immediate_context->RSSetState(shadow_rasterizer_state.Get());
+	immediate_context->ClearDepthStencilView(shadow_depth_stencil_view.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+	SceneConstants shadow_constants{};
+	XMStoreFloat4x4(&shadow_constants.view_projection, calculate_light_view_projection());
+	immediate_context->UpdateSubresource(scene_constant_buffer.Get(), 0, nullptr, &shadow_constants, 0, 0);
+	immediate_context->VSSetConstantBuffers(1, 1, scene_constant_buffer.GetAddressOf());
+
+	// 背景は影を落とさない。ステージと車だけを深度として記録する。
+	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1), nullptr, true);
+	car_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
+
+	immediate_context->OMSetRenderTargets(1, previous_rtv.GetAddressOf(), previous_dsv.Get());
+	immediate_context->RSSetViewports(1, &previous_viewport);
+	immediate_context->RSSetState(previous_rasterizer.Get());
 }
 
 void RacingGameScene::update_scene_constants(ID3D11DeviceContext* immediate_context)
@@ -138,12 +229,19 @@ void RacingGameScene::update_scene_constants(ID3D11DeviceContext* immediate_cont
 		light_settings.ambient_intensity);
 	constants.render_options = XMFLOAT4(
 		light_settings.use_point_light ? 1.0f : 0.0f,
-		light_settings.unlit_texture_check ? 1.0f : 0.0f, 0.0f, 0.0f);
+		light_settings.unlit_texture_check ? 1.0f : 0.0f,
+		light_settings.use_pbr_lighting ? 1.0f : 0.0f, 0.0f);
+	XMStoreFloat4x4(&constants.light_view_projection, calculate_light_view_projection());
+	constants.shadow_settings = XMFLOAT4(0.0015f,
+		(!light_settings.use_point_light && light_settings.use_shadows) ? 1.0f : 0.0f, 0.0f, 0.0f);
+	constants.post_process_settings = XMFLOAT4(light_settings.exposure_ev, 0.0f, 0.0f, 0.0f);
 
 	// static_mesh と skinned_mesh の両シェーダーがこの b1 定数バッファを参照する
 	immediate_context->UpdateSubresource(scene_constant_buffer.Get(), 0, nullptr, &constants, 0, 0);
 	immediate_context->VSSetConstantBuffers(1, 1, scene_constant_buffer.GetAddressOf());
 	immediate_context->PSSetConstantBuffers(1, 1, scene_constant_buffer.GetAddressOf());
+	immediate_context->PSSetShaderResources(3, 1, shadow_shader_resource_view.GetAddressOf());
+	immediate_context->PSSetSamplers(3, 1, shadow_sampler_state.GetAddressOf());
 }
 
 void RacingGameScene::draw_models(ID3D11DeviceContext* immediate_context)
@@ -222,6 +320,8 @@ void RacingGameScene::draw_hud()
 	ImGui::SetNextWindowSize(ImVec2(360, 0), ImGuiCond_Once);
 	ImGui::Begin("Lighting / Texture Debug");
 	ImGui::Checkbox("Use point light", &light_settings.use_point_light);
+	ImGui::Checkbox("Enable directional shadows", &light_settings.use_shadows);
+	ImGui::Checkbox("Use PBR lighting", &light_settings.use_pbr_lighting);
 	if (light_settings.use_point_light)
 	{
 		ImGui::DragFloat3("Light position", &light_settings.position.x, 0.1f);
@@ -237,6 +337,7 @@ void RacingGameScene::draw_hud()
 	ImGui::TextUnformatted("Environment light (sky)");
 	ImGui::ColorEdit3("Ambient color", &light_settings.ambient_color.x);
 	ImGui::SliderFloat("Ambient intensity", &light_settings.ambient_intensity, 0.0f, 1.0f);
+	ImGui::SliderFloat("Exposure (EV)", &light_settings.exposure_ev, -4.0f, 4.0f);
 	ImGui::Separator();
 	ImGui::Checkbox("Unlit texture check", &light_settings.unlit_texture_check);
 	ImGui::TextWrapped("Enable this to view texture colors without lighting. White or gray areas may use a dummy texture.");
@@ -313,6 +414,11 @@ void RacingGameScene::uninitialize()
 	background_mesh.reset();
 	debug_cube.reset();
 	scene_constant_buffer.Reset();
+	shadow_rasterizer_state.Reset();
+	shadow_sampler_state.Reset();
+	shadow_shader_resource_view.Reset();
+	shadow_depth_stencil_view.Reset();
+	shadow_depth_texture.Reset();
 	background_rasterizer_state.Reset();
 	player.reset();
 	if (camera_controller) camera_controller->stop_editor_camera();

@@ -41,6 +41,9 @@ private:
 		DirectX::XMFLOAT4 light_color_intensity;
 		DirectX::XMFLOAT4 ambient_color_intensity;
 		DirectX::XMFLOAT4 render_options;
+		DirectX::XMFLOAT4X4 light_view_projection;
+		DirectX::XMFLOAT4 shadow_settings;
+		DirectX::XMFLOAT4 post_process_settings;
 	};
 
 	// シーン内の光源設定。これをシェーダーに渡す。
@@ -53,7 +56,10 @@ private:
 		float range = 30.0f;
 		float intensity = 1.25f;
 		float ambient_intensity = 0.35f;
+		float exposure_ev = 1.0f;
 		bool use_point_light = false;
+		bool use_shadows = true;
+		bool use_pbr_lighting = true;
 		bool unlit_texture_check = false;
 	};
 	LightSettings light_settings;
@@ -82,6 +88,11 @@ private:
 	ObjectTransform background_transform;
 
 	Microsoft::WRL::ComPtr<ID3D11Buffer> scene_constant_buffer;
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> shadow_depth_texture;
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> shadow_depth_stencil_view;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shadow_shader_resource_view;
+	Microsoft::WRL::ComPtr<ID3D11SamplerState> shadow_sampler_state;
+	Microsoft::WRL::ComPtr<ID3D11RasterizerState> shadow_rasterizer_state;
 	// カプセル背景を内側から見るため、背面も描画する専用ラスタライザ。
 	Microsoft::WRL::ComPtr<ID3D11RasterizerState> background_rasterizer_state;
 	DirectX::XMFLOAT4X4 stage_world{};
@@ -90,6 +101,8 @@ private:
 
 	// 描画関数は毎フレーム同じ順序でこれらを呼び出す。
 	void update_scene_constants(ID3D11DeviceContext* immediate_context);
+	void render_shadow_map(ID3D11DeviceContext* immediate_context);
+	DirectX::XMMATRIX calculate_light_view_projection() const;
 	void configure_object_transforms();
 	void update_object_world_matrices();
 	void draw_models(ID3D11DeviceContext* immediate_context);
