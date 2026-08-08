@@ -1,5 +1,6 @@
 #pragma once
 
+#include <windows.h>
 #include <DirectXMath.h>
 
 class CameraController
@@ -8,6 +9,10 @@ public:
 	CameraController() = default;
 
 	void update(float elapsedTime, const DirectX::XMFLOAT3& playerPos, float playerAngleY, float playerSpeed, bool isDrifting, float driftDir);
+	// 右クリック中だけ使う、ステージ確認用の自由カメラ。
+	// 戻り値が true の間は、通常のプレイヤー追従カメラを更新しない。
+	bool update_editor_camera(float elapsedTime, HWND hwnd, bool enabled, bool mouse_input_allowed);
+	void stop_editor_camera();
 
 	const DirectX::XMFLOAT3& get_eye() const { return currentEye; }
 	const DirectX::XMFLOAT3& get_focus() const { return currentFocus; }
@@ -34,4 +39,11 @@ private:
 	float focusFollowSpeed = 8.0f;
 
 	float shakeTimer = 0.0f;
+
+	bool editor_camera_active = false;
+	DirectX::XMFLOAT3 editor_position{};
+	float editor_yaw = 0.0f;
+	float editor_pitch = 0.0f;
+	float editor_move_speed = 8.0f;
+	float editor_mouse_sensitivity = 0.003f;
 };

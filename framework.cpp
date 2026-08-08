@@ -156,7 +156,7 @@ void framework::update(float elapsed_time)
 void framework::render(float elapsed_time)
 {
 	// 毎フレームの実行順序: 画面クリア -> 共通ステート設定 -> シーン描画コマンド -> ImGui処理 -> 画面反映(Present)
-	const float clear_color[] = { 0.0f, 0.0f, 1.0f, 1.0f }; // 0.08f, 0.10f, 0.14f, 1.0f
+	const float clear_color[] = { 0.1f, 0.1f, 0.1f, 1.0f }; // 0.08f, 0.10f, 0.14f, 1.0f
 	immediate_context->ClearRenderTargetView(render_target_view.Get(), clear_color);
 	immediate_context->ClearDepthStencilView(depth_stencil_view.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	immediate_context->OMSetRenderTargets(1, render_target_view.GetAddressOf(), depth_stencil_view.Get());

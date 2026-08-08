@@ -61,6 +61,7 @@ private:
 	// Unity / Unreal のSceneビューを参考にした、編集時だけ表示する補助線の設定。
 	struct EditorDebugSettings
 	{
+		bool enable_editor_camera = true;
 		bool show_grid = true;
 		bool show_axis_gizmo = true;
 		float grid_half_size = 20.0f;

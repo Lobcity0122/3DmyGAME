@@ -18,7 +18,7 @@ void CameraController::update(float elapsedTime, const DirectX::XMFLOAT3& player
 {
 	if (elapsedTime <= 0.0f) elapsedTime = 0.001f;
 
-	float speedRatio = std::min(playerSpeed / 30.0f, 1.0f);
+	float speedRatio = (std::min)(playerSpeed / 30.0f, 1.0f);
 
 	// 回転の追従
 	float angleDiff = NormalizeAngleDiff(playerAngleY - currentCameraAngleY);
@@ -74,4 +74,82 @@ void CameraController::update(float elapsedTime, const DirectX::XMFLOAT3& player
 	currentRoll = Lerp(currentRoll, targetRoll, 5.0f * elapsedTime);
 
 	cameraUp = { std::sinf(currentRoll), std::cosf(currentRoll), 0.0f };
+}
+
+bool CameraController::update_editor_camera(float elapsedTime, HWND hwnd, bool enabled, bool mouse_input_allowed)
+{
+	if (hwnd == nullptr)
+	{
+		stop_editor_camera();
+		return false;
+	}
+	const bool right_button_down = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+	// 一度フリーカメラに入った後は、マウスがUI上に移動しても右クリックを離すまで継続する。
+	const bool should_activate = enabled && right_button_down && (editor_camera_active || mouse_input_allowed);
+	if (!should_activate)
+	{
+		stop_editor_camera();
+		return false;
+	}
+
+	RECT client_rect{};
+	GetClientRect(hwnd, &client_rect);
+	POINT center{ (client_rect.right - client_rect.left) / 2, (client_rect.bottom - client_rect.top) / 2 };
+	ClientToScreen(hwnd, &center);
+	if (!editor_camera_active)
+	{
+		// 今の追従カメラの向きを引き継ぐため、切り替えた瞬間に視点が飛ばない。
+		const DirectX::XMVECTOR eye = DirectX::XMLoadFloat3(&currentEye);
+		const DirectX::XMVECTOR focus = DirectX::XMLoadFloat3(&currentFocus);
+		DirectX::XMFLOAT3 direction{};
+		DirectX::XMStoreFloat3(&direction,
+			DirectX::XMVector3Normalize(DirectX::XMVectorSubtract(focus, eye)));
+		editor_position = currentEye;
+		editor_yaw = std::atan2f(direction.x, direction.z);
+		editor_pitch = std::asinf(direction.y);
+		editor_camera_active = true;
+		SetCapture(hwnd);
+		ShowCursor(FALSE);
+		SetCursorPos(center.x, center.y);
+	}
+
+	POINT cursor{};
+	GetCursorPos(&cursor);
+	const float delta_x = static_cast<float>(cursor.x - center.x);
+	const float delta_y = static_cast<float>(cursor.y - center.y);
+	editor_yaw += delta_x * editor_mouse_sensitivity;
+	editor_pitch -= delta_y * editor_mouse_sensitivity;
+	// 真上・真下を越えると上下が反転して操作しづらくなるため制限する。
+	editor_pitch = (std::max)(-1.5f, (std::min)(editor_pitch, 1.5f));
+	SetCursorPos(center.x, center.y);
+
+	const float cos_pitch = std::cosf(editor_pitch);
+	const DirectX::XMFLOAT3 forward{
+		std::sinf(editor_yaw) * cos_pitch,
+		std::sinf(editor_pitch),
+		std::cosf(editor_yaw) * cos_pitch
+	};
+	const DirectX::XMFLOAT3 right{ std::cosf(editor_yaw), 0.0f, -std::sinf(editor_yaw) };
+	float speed = editor_move_speed * elapsedTime;
+	if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0) speed *= 3.0f;
+	if ((GetAsyncKeyState('W') & 0x8000) != 0) { editor_position.x += forward.x * speed; editor_position.y += forward.y * speed; editor_position.z += forward.z * speed; }
+	if ((GetAsyncKeyState('S') & 0x8000) != 0) { editor_position.x -= forward.x * speed; editor_position.y -= forward.y * speed; editor_position.z -= forward.z * speed; }
+	if ((GetAsyncKeyState('D') & 0x8000) != 0) { editor_position.x += right.x * speed; editor_position.z += right.z * speed; }
+	if ((GetAsyncKeyState('A') & 0x8000) != 0) { editor_position.x -= right.x * speed; editor_position.z -= right.z * speed; }
+	if ((GetAsyncKeyState('E') & 0x8000) != 0) editor_position.y += speed;
+	if ((GetAsyncKeyState('Q') & 0x8000) != 0) editor_position.y -= speed;
+
+	currentEye = editor_position;
+	currentFocus = { editor_position.x + forward.x, editor_position.y + forward.y, editor_position.z + forward.z };
+	cameraUp = { 0.0f, 1.0f, 0.0f };
+	currentFov = baseFov;
+	return true;
+}
+
+void CameraController::stop_editor_camera()
+{
+	if (!editor_camera_active) return;
+	editor_camera_active = false;
+	ReleaseCapture();
+	ShowCursor(TRUE);
 }

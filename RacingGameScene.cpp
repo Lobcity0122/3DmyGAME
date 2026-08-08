@@ -33,12 +33,21 @@ bool RacingGameScene::initialize(ID3D11Device* device)
 
 void RacingGameScene::update(float elapsed_time)
 {
-	// 最初にゲーム状態を更新。描画処理は後からこの結果（プレイヤーとカメラの状態）を読み込み
-	player->update(elapsed_time, nullptr);
+	// 右クリック中はステージ確認用のフリーカメラを優先し、車の操作と追従カメラを停止する。
+	bool mouse_input_allowed = true;
+#ifdef USE_IMGUI
+	mouse_input_allowed = !ImGui::GetIO().WantCaptureMouse;
+#endif
+	const bool is_editing_camera = camera_controller->update_editor_camera(
+		elapsed_time, GetActiveWindow(), editor_debug.enable_editor_camera, mouse_input_allowed);
+	if (!is_editing_camera)
+	{
+		player->update(elapsed_time, nullptr);
+		camera_controller->update(elapsed_time, player->get_position(), player->get_angle().y,
+			player->get_current_speed(), player->is_drifting(), player->get_drift_direction());
+	}
 	update_object_world_matrices();
 	total_time += elapsed_time;
-	camera_controller->update(elapsed_time, player->get_position(), player->get_angle().y,
-		player->get_current_speed(), player->is_drifting(), player->get_drift_direction());
 }
 
 void RacingGameScene::configure_object_transforms()
@@ -49,7 +58,7 @@ void RacingGameScene::configure_object_transforms()
 	stage_transform = {
 		{ 0.0f, 0.0f, 0.0f },  // position
 		{ 0.0f, 0.0f, 0.0f },  // rotation_degrees
-		{ 0.05f, 0.05f, 0.05f }   // scale
+		{ 1.0f, 1.0f, 1.0f }   // scale
 	};
 
 	character_transform = {
@@ -134,7 +143,7 @@ void RacingGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 	// Draw the course first, then draw the moving car on top of it using the depth buffer.
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1));
 	car_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1));
-	character_mesh->render(immediate_context, character_world, XMFLOAT4(1, 1, 1, 1));
+	//character_mesh->render(immediate_context, character_world, XMFLOAT4(1, 1, 1, 1));
 	draw_editor_helpers(immediate_context);
 }
 
@@ -266,6 +275,9 @@ void RacingGameScene::draw_hud()
 	ImGui::SetNextWindowPos(ImVec2(400, 430), ImGuiCond_Once);
 	ImGui::SetNextWindowSize(ImVec2(300, 0), ImGuiCond_Once);
 	ImGui::Begin("Editor Helpers");
+	ImGui::Checkbox("Enable RMB editor camera", &editor_debug.enable_editor_camera);
+	ImGui::TextUnformatted("Hold RMB: look / WASD: move / Q,E: down,up / Shift: fast");
+	ImGui::Separator();
 	ImGui::Checkbox("Show grid", &editor_debug.show_grid);
 	if (editor_debug.show_grid)
 	{
@@ -291,5 +303,6 @@ void RacingGameScene::uninitialize()
 	debug_cube.reset();
 	scene_constant_buffer.Reset();
 	player.reset();
+	if (camera_controller) camera_controller->stop_editor_camera();
 	camera_controller.reset();
 }
