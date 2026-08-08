@@ -21,6 +21,10 @@ public:
 	const DirectX::XMFLOAT3& get_angle() const { return angle; }
 	void set_angle(const DirectX::XMFLOAT3& ang) { angle = ang; }
 
+	// 車だけは Player が Transform を持つ。デバッグ画面からも編集できるように公開する。
+	const DirectX::XMFLOAT3& get_scale() const { return scale; }
+	void set_scale(const DirectX::XMFLOAT3& new_scale) { scale = new_scale; }
+
 	float get_current_speed() const { return currentSpeed; }
 	float get_top_speed() const { return topSpeed; }
 	bool is_drifting() const { return isDrifting; }

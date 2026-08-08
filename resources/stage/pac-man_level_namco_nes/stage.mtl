@@ -1,0 +1,46 @@
+# Blender 5.1.2 MTL File: 'stage.blend'
+# www.blender.org
+
+newmtl board1
+map_Kd zeimport_poly_XSIPOLYCLS.board_baseColor.png
+Ns 360.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+
+newmtl zeimport_poly5_XSIPOLYCLS.maze
+map_Kd zeimport_poly5_XSIPOLYCLS.maze_baseColor.png
+Ns 360.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+
+newmtl zeimport_poly84_XSIPOLYCLS.main
+map_Kd zeimport_poly84_XSIPOLYCLS.main_baseColor.png
+Ns 360.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+
+newmtl zeimport_poly_XSIPOLYCLS.board
+map_Kd zeimport_poly_XSIPOLYCLS.board_baseColor.png
+Ns 360.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2

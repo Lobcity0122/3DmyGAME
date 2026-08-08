@@ -57,6 +57,8 @@ private:
 	std::unique_ptr<Scene> current_scene;
 	SceneType requested_scene_type = SceneType::RACING;
 	high_resolution_timer tictoc;
+	// Change this value to change the application's maximum frame rate.
+	static constexpr float target_fps = 90.0f;
 	uint32_t frames_per_second = 0;
 	float count_by_seconds = 0.0f;
 };

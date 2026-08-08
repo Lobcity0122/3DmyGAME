@@ -12,7 +12,8 @@
 //   float4 camera_position;            // Offset:   80 Size:    16
 //   float4 light_position_range;       // Offset:   96 Size:    16
 //   float4 light_color_intensity;      // Offset:  112 Size:    16
-//   float4 render_options;             // Offset:  128 Size:    16
+//   float4 ambient_color_intensity;    // Offset:  128 Size:    16
+//   float4 render_options;             // Offset:  144 Size:    16
 //
 // }
 //
@@ -48,7 +49,7 @@
 //
 ps_5_0
 dcl_globalFlags refactoringAllowed | skipOptimization
-dcl_constantbuffer CB1[9], immediateIndexed
+dcl_constantbuffer CB1[10], immediateIndexed
 dcl_sampler s1, mode_default
 dcl_sampler s2, mode_default
 dcl_resource_texture2d (float,float,float,float) t0
@@ -75,7 +76,7 @@ sample_indexable(texture2d)(float,float,float,float) r0.xyzw, v2.xyxx, t0.xyzw, 
 mov r0.w, r0.w  // r0.w <- alpha
 
 #line 20
-lt r1.x, l(0.500000), cb1[8].y
+lt r1.x, l(0.500000), cb1[9].y
 if_nz r1.x
 
 #line 22
@@ -136,7 +137,7 @@ mul r1.xyz, r1.wwww, r1.xyzx  // r1.x <- N.x; r1.y <- N.y; r1.z <- N.z
 mov r1.w, l(1.000000)  // r1.w <- attenuation
 
 #line 38
-lt r2.x, l(0.500000), cb1[8].x
+lt r2.x, l(0.500000), cb1[9].x
 if_nz r2.x
 
 #line 40
@@ -175,21 +176,28 @@ else
 endif 
 
 #line 51
+mul r3.xyz, r0.xyzx, cb1[8].xyzx
+mul r3.xyz, r3.xyzx, cb1[8].wwww  // r3.x <- ambient.x; r3.y <- ambient.y; r3.z <- ambient.z
+
+#line 52
 dp3 r2.w, r1.xyzx, r2.xyzx
-max r2.w, r2.w, l(0.050000)
-mul r3.xyz, r0.xyzx, r2.wwww
-mul r3.xyz, r1.wwww, r3.xyzx
-mul r3.xyz, r3.xyzx, cb1[7].xyzx
-mul r3.xyz, r3.xyzx, cb1[7].wwww  // r3.x <- diffuse.x; r3.y <- diffuse.y; r3.z <- diffuse.z
+max r2.w, r2.w, l(0.000000)
+mul r4.xyz, r0.xyzx, r2.wwww
+mul r4.xyz, r1.wwww, r4.xyzx
+mul r4.xyz, r4.xyzx, cb1[7].xyzx
+mul r4.xyz, r4.xyzx, cb1[7].wwww  // r4.x <- direct.x; r4.y <- direct.y; r4.z <- direct.z
 
 #line 53
+add r3.xyz, r3.xyzx, r4.xyzx  // r3.x <- diffuse.x; r3.y <- diffuse.y; r3.z <- diffuse.z
+
+#line 55
 mov r4.xyz, -v3.xyzx
 add r4.xyz, r4.xyzx, cb1[5].xyzx
 dp3 r2.w, r4.xyzx, r4.xyzx
 rsq r2.w, r2.w
 mul r4.xyz, r2.wwww, r4.xyzx  // r4.x <- V.x; r4.y <- V.y; r4.z <- V.z
 
-#line 54
+#line 56
 itof r2.w, l(0)
 add r2.xyz, r2.xyzx, r4.xyzx
 dp3 r3.w, r2.xyzx, r2.xyzx
@@ -202,9 +210,13 @@ log r1.x, r1.x
 mul r1.x, r1.x, r1.y
 exp r1.xyz, r1.xxxx  // r1.x <- specular.x; r1.y <- specular.y; r1.z <- specular.z
 
-#line 58
+#line 60
 mul r1.xyz, r1.wwww, r1.xyzx
+mul r1.xyz, r1.xyzx, cb1[7].xyzx
+mul r1.xyz, r1.xyzx, cb1[7].wwww  // r1.x <- specular_light.x; r1.y <- specular_light.y; r1.z <- specular_light.z
+
+#line 61
 add r0.xyz, r1.xyzx, r3.xyzx
 mul o0.xyzw, r0.xyzw, v1.xyzw  // o0.x <- <main return value>.x; o0.y <- <main return value>.y; o0.z <- <main return value>.z; o0.w <- <main return value>.w
 ret 
-// Approximately 88 instruction slots used
+// Approximately 93 instruction slots used

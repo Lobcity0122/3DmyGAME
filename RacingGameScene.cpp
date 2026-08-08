@@ -12,9 +12,11 @@ bool RacingGameScene::initialize(ID3D11Device* device)
 	player = std::make_unique<Player>();
 	player->initialize();
 	camera_controller = std::make_unique<CameraController>();
-	car_mesh = std::make_unique<static_mesh>(device, L".\\resources\\car\\123.obj");
-	stage_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\map_ydh\\scene.obj");
+	car_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
+	stage_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage.obj");
 	character_mesh = std::make_unique<skinned_mesh>(device, ".\\resources\\cube.000.fbx", true);
+	debug_cube = std::make_unique<cube>(device);
+	configure_object_transforms();
 
 	// 共有の b1 定数バッファを1度だけ生成。中身は毎フレーム更新
 	D3D11_BUFFER_DESC buffer_desc{};
@@ -22,12 +24,9 @@ bool RacingGameScene::initialize(ID3D11Device* device)
 	buffer_desc.Usage = D3D11_USAGE_DEFAULT;
 	buffer_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	if (FAILED(device->CreateBuffer(&buffer_desc, nullptr, scene_constant_buffer.GetAddressOf()))) return false;
-
-	// The stage coordinates are already centered near (0, 0, 0), so it needs no extra transform.
-	XMStoreFloat4x4(&stage_world, XMMatrixIdentity());
-
-	// OBJの車とFBXを同時に確認できるように、FBXの位置をずらします。
-	XMStoreFloat4x4(&character_world, XMMatrixTranslation(4.0f, 0.0f, 4.0f));
+	
+	// 初期 Transform から描画用ワールド行列を作る。
+	update_object_world_matrices();
 	total_time = 0.0f;
 	return true;
 }
@@ -36,9 +35,53 @@ void RacingGameScene::update(float elapsed_time)
 {
 	// 最初にゲーム状態を更新。描画処理は後からこの結果（プレイヤーとカメラの状態）を読み込み
 	player->update(elapsed_time, nullptr);
+	update_object_world_matrices();
 	total_time += elapsed_time;
 	camera_controller->update(elapsed_time, player->get_position(), player->get_angle().y,
 		player->get_current_speed(), player->is_drifting(), player->get_drift_direction());
+}
+
+void RacingGameScene::configure_object_transforms()
+{
+	// 各モデルの初期配置はこの関数だけで決める。
+	// position: ワールド座標、rotation_degrees: X/Y/Z 軸の回転（度）、scale: 拡縮率。
+	// 新しいモデルを追加したときも、同じ ObjectTransform を1つ用意してここで設定する。
+	stage_transform = {
+		{ 0.0f, 0.0f, 0.0f },  // position
+		{ 0.0f, 0.0f, 0.0f },  // rotation_degrees
+		{ 0.05f, 0.05f, 0.05f }   // scale
+	};
+
+	character_transform = {
+		{ 4.0f, 0.0f, 4.0f },
+		{ 0.0f, 0.0f, 0.0f },
+		{ 1.0f, 1.0f, 1.0f }
+	};
+
+	// 車は Player が Transform を保持するため、Player の setter で設定する。
+	player->set_position({ 0.0f, 0.0f, 0.0f });
+	player->set_angle({ XMConvertToRadians(0.0f), XMConvertToRadians(0.0f), XMConvertToRadians(0.0f) });
+	player->set_scale({ 1.0f, 1.0f, 1.0f });
+}
+
+void RacingGameScene::update_object_world_matrices()
+{
+	// 行列は「拡縮 → 回転 → 平行移動」の順に掛ける。
+	// DirectXMath の回転関数はラジアンなので、UIで保持した度をここで変換する。
+	const auto make_world_matrix = [](const ObjectTransform& transform)
+	{
+		const XMMATRIX scale = XMMatrixScaling(transform.scale.x, transform.scale.y, transform.scale.z);
+		const XMMATRIX rotation = XMMatrixRotationRollPitchYaw(
+			XMConvertToRadians(transform.rotation_degrees.x),
+			XMConvertToRadians(transform.rotation_degrees.y),
+			XMConvertToRadians(transform.rotation_degrees.z));
+		const XMMATRIX translation = XMMatrixTranslation(
+			transform.position.x, transform.position.y, transform.position.z);
+		return scale * rotation * translation;
+	};
+
+	XMStoreFloat4x4(&stage_world, make_world_matrix(stage_transform));
+	XMStoreFloat4x4(&character_world, make_world_matrix(character_transform));
 }
 
 void RacingGameScene::render(ID3D11DeviceContext* immediate_context, float)
@@ -72,6 +115,9 @@ void RacingGameScene::update_scene_constants(ID3D11DeviceContext* immediate_cont
 		light_settings.position.x, light_settings.position.y, light_settings.position.z, light_settings.range);
 	constants.light_color_intensity = XMFLOAT4(
 		light_settings.color.x, light_settings.color.y, light_settings.color.z, light_settings.intensity);
+	constants.ambient_color_intensity = XMFLOAT4(
+		light_settings.ambient_color.x, light_settings.ambient_color.y, light_settings.ambient_color.z,
+		light_settings.ambient_intensity);
 	constants.render_options = XMFLOAT4(
 		light_settings.use_point_light ? 1.0f : 0.0f,
 		light_settings.unlit_texture_check ? 1.0f : 0.0f, 0.0f, 0.0f);
@@ -89,6 +135,49 @@ void RacingGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1));
 	car_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1));
 	character_mesh->render(immediate_context, character_world, XMFLOAT4(1, 1, 1, 1));
+	draw_editor_helpers(immediate_context);
+}
+
+void RacingGameScene::draw_editor_helpers(ID3D11DeviceContext* immediate_context)
+{
+	if (!editor_debug.show_grid && !editor_debug.show_axis_gizmo) return;
+
+	// cube は中心原点・一辺1の形状。細長く拡縮して、線のように見せる。
+	const auto draw_box = [&](const XMFLOAT3& position, const XMFLOAT3& scale, const XMFLOAT4& color)
+	{
+		XMFLOAT4X4 world{};
+		XMStoreFloat4x4(&world,
+			XMMatrixScaling(scale.x, scale.y, scale.z) *
+			XMMatrixTranslation(position.x, position.y, position.z));
+		debug_cube->render(immediate_context, world, color);
+	};
+
+	if (editor_debug.show_grid)
+	{
+		// 線の本数には上限を設け、誤操作で重くならないようにする。
+		const float spacing = (std::max)(editor_debug.grid_spacing, 0.1f);
+		const float half_size = (std::max)(editor_debug.grid_half_size, spacing);
+		const int line_count = (std::min)(static_cast<int>(half_size / spacing), 50);
+		const float length = line_count * spacing * 2.0f;
+		const XMFLOAT4 grid_color{ 0.34f, 0.38f, 0.46f, 1.0f };
+
+		for (int i = -line_count; i <= line_count; ++i)
+		{
+			const float offset = i * spacing;
+			draw_box({ 0.0f, 0.01f, offset }, { length, 0.01f, 0.01f }, grid_color);
+			draw_box({ offset, 0.01f, 0.0f }, { 0.01f, 0.01f, length }, grid_color);
+		}
+	}
+
+	if (editor_debug.show_axis_gizmo)
+	{
+		const float length = (std::max)(editor_debug.axis_length, 0.1f);
+		const float thickness = 0.06f;
+		// X=赤、Y=緑、Z=青。ワールド原点と各軸の向きが一目で分かる。
+		draw_box({ length * 0.5f, thickness, 0.0f }, { length, thickness, thickness }, { 1, 0.15f, 0.15f, 1 });
+		draw_box({ 0.0f, length * 0.5f, 0.0f }, { thickness, length, thickness }, { 0.15f, 1, 0.15f, 1 });
+		draw_box({ 0.0f, thickness, length * 0.5f }, { thickness, thickness, length }, { 0.2f, 0.4f, 1, 1 });
+	}
 }
 
 void RacingGameScene::draw_hud()
@@ -125,8 +214,70 @@ void RacingGameScene::draw_hud()
 	ImGui::ColorEdit3("Light color", &light_settings.color.x);
 	ImGui::SliderFloat("Intensity", &light_settings.intensity, 0.0f, 5.0f);
 	ImGui::Separator();
+	ImGui::TextUnformatted("Environment light (sky)");
+	ImGui::ColorEdit3("Ambient color", &light_settings.ambient_color.x);
+	ImGui::SliderFloat("Ambient intensity", &light_settings.ambient_intensity, 0.0f, 1.0f);
+	ImGui::Separator();
 	ImGui::Checkbox("Unlit texture check", &light_settings.unlit_texture_check);
 	ImGui::TextWrapped("Enable this to view texture colors without lighting. White or gray areas may use a dummy texture.");
+	ImGui::End();
+
+	// 現在シーンに配置している各モデルの Transform を個別に確認・調整する画面。
+	// 車は Player が保持するため、ここで設定してもその後は通常どおり操作入力で動かせる。
+	ImGui::SetNextWindowPos(ImVec2(400, 20), ImGuiCond_Once);
+	ImGui::SetNextWindowSize(ImVec2(330, 0), ImGuiCond_Once);
+	ImGui::Begin("Object Transform Debug");
+	const auto edit_transform = [](const char* name, ObjectTransform& transform)
+	{
+		if (!ImGui::CollapsingHeader(name, ImGuiTreeNodeFlags_DefaultOpen)) return;
+		ImGui::PushID(name);
+		ImGui::DragFloat3("Position", &transform.position.x, 0.1f);
+		ImGui::DragFloat3("Rotation (degrees)", &transform.rotation_degrees.x, 1.0f);
+		ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f, 0.01f, 100.0f);
+		ImGui::PopID();
+	};
+
+	edit_transform("Stage", stage_transform);
+	edit_transform("Character", character_transform);
+
+	if (ImGui::CollapsingHeader("Car / Player", ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		ImGui::PushID("CarPlayer");
+		XMFLOAT3 position = player->get_position();
+		if (ImGui::DragFloat3("Position", &position.x, 0.1f)) player->set_position(position);
+
+		const XMFLOAT3 angle = player->get_angle();
+		XMFLOAT3 rotation_degrees{
+			XMConvertToDegrees(angle.x), XMConvertToDegrees(angle.y), XMConvertToDegrees(angle.z) };
+		if (ImGui::DragFloat3("Rotation (degrees)", &rotation_degrees.x, 1.0f))
+		{
+			player->set_angle(XMFLOAT3(
+				XMConvertToRadians(rotation_degrees.x),
+				XMConvertToRadians(rotation_degrees.y),
+				XMConvertToRadians(rotation_degrees.z)));
+		}
+
+		XMFLOAT3 scale = player->get_scale();
+		if (ImGui::DragFloat3("Scale", &scale.x, 0.01f, 0.01f, 100.0f)) player->set_scale(scale);
+		ImGui::PopID();
+	}
+	ImGui::End();
+
+	ImGui::SetNextWindowPos(ImVec2(400, 430), ImGuiCond_Once);
+	ImGui::SetNextWindowSize(ImVec2(300, 0), ImGuiCond_Once);
+	ImGui::Begin("Editor Helpers");
+	ImGui::Checkbox("Show grid", &editor_debug.show_grid);
+	if (editor_debug.show_grid)
+	{
+		ImGui::DragFloat("Grid half size", &editor_debug.grid_half_size, 0.5f, 1.0f, 50.0f);
+		ImGui::DragFloat("Grid spacing", &editor_debug.grid_spacing, 0.1f, 0.1f, 10.0f);
+	}
+	ImGui::Checkbox("Show XYZ axis gizmo", &editor_debug.show_axis_gizmo);
+	if (editor_debug.show_axis_gizmo)
+	{
+		ImGui::DragFloat("Axis length", &editor_debug.axis_length, 0.1f, 0.1f, 20.0f);
+	}
+	ImGui::TextWrapped("Grid: XZ plane at world origin. Gizmo: X red, Y green, Z blue.");
 	ImGui::End();
 #endif
 }
@@ -137,6 +288,7 @@ void RacingGameScene::uninitialize()
 	car_mesh.reset();
 	stage_mesh.reset();
 	character_mesh.reset();
+	debug_cube.reset();
 	scene_constant_buffer.Reset();
 	player.reset();
 	camera_controller.reset();

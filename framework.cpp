@@ -1,5 +1,7 @@
 #include "framework.h"
 #include "RacingGameScene.h"
+#include <chrono>
+#include <cmath>
 #include <sstream>
 
 using namespace Microsoft::WRL;
@@ -35,6 +37,7 @@ bool framework::initialize()
 	if (FAILED(swap_chain->GetBuffer(0, IID_PPV_ARGS(back_buffer.GetAddressOf()))) ||
 		FAILED(device->CreateRenderTargetView(back_buffer.Get(), nullptr, render_target_view.GetAddressOf()))) return false;
 
+	// 深度バッファは、ピクセルごとの深度を格納する
 	D3D11_TEXTURE2D_DESC depth_desc{};
 	depth_desc.Width = SCREEN_WIDTH;
 	depth_desc.Height = SCREEN_HEIGHT;
@@ -55,23 +58,27 @@ bool framework::initialize()
 	sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
 	if (FAILED(device->CreateSamplerState(&sampler_desc, linear_sampler.GetAddressOf()))) return false;
 
+	// 深度ステンシルステートは、ピクセルの深度テストを制御する
 	D3D11_DEPTH_STENCIL_DESC depth_state_desc{};
 	depth_state_desc.DepthEnable = TRUE;
 	depth_state_desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 	depth_state_desc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 	if (FAILED(device->CreateDepthStencilState(&depth_state_desc, depth_enabled_state.GetAddressOf()))) return false;
 
+	// ブレンドステートは、ピクセルのアルファブレンドを制御する
 	D3D11_BLEND_DESC blend_desc{};
 	blend_desc.RenderTarget[0].BlendEnable = FALSE;
 	blend_desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 	if (FAILED(device->CreateBlendState(&blend_desc, opaque_blend_state.GetAddressOf()))) return false;
 
+	// ラスタライザーステートは、ポリゴンの塗りつぶし方法とカリング方法を制御する
 	D3D11_RASTERIZER_DESC rasterizer_desc{};
 	rasterizer_desc.FillMode = D3D11_FILL_SOLID;
-	rasterizer_desc.CullMode = D3D11_CULL_NONE;
+	rasterizer_desc.CullMode = D3D11_CULL_BACK;
 	rasterizer_desc.DepthClipEnable = TRUE;
 	if (FAILED(device->CreateRasterizerState(&rasterizer_desc, rasterizer_state.GetAddressOf()))) return false;
 
+	// ビューポートは、レンダリング対象の矩形領域を定義する
 	D3D11_VIEWPORT viewport{};
 	viewport.Width = static_cast<float>(SCREEN_WIDTH);
 	viewport.Height = static_cast<float>(SCREEN_HEIGHT);
@@ -106,10 +113,22 @@ int framework::run()
 		}
 		else
 		{
+			// フレームごとの処理: 時間計測 -> 更新 -> 描画 -> FPS制限
+			const auto frame_start = std::chrono::steady_clock::now();
 			tictoc.tick();
 			calculate_frame_stats();
 			update(tictoc.time_interval());
 			render(tictoc.time_interval());
+
+			const float elapsed_seconds = std::chrono::duration<float>(
+				std::chrono::steady_clock::now() - frame_start).count();
+			const float target_seconds = 1.0f / target_fps;
+			if (elapsed_seconds < target_seconds)
+			{
+				// Sleep() はミリ秒単位で待機するため、秒単位の差をミリ秒に変換して切り上げる
+				const DWORD sleep_milliseconds = static_cast<DWORD>(std::ceil((target_seconds - elapsed_seconds) * 1000.0f));
+				Sleep(sleep_milliseconds);
+			}
 		}
 	}
 #ifdef USE_IMGUI
@@ -137,7 +156,7 @@ void framework::update(float elapsed_time)
 void framework::render(float elapsed_time)
 {
 	// 毎フレームの実行順序: 画面クリア -> 共通ステート設定 -> シーン描画コマンド -> ImGui処理 -> 画面反映(Present)
-	const float clear_color[] = { 0.08f, 0.10f, 0.14f, 1.0f };
+	const float clear_color[] = { 0.0f, 0.0f, 1.0f, 1.0f }; // 0.08f, 0.10f, 0.14f, 1.0f
 	immediate_context->ClearRenderTargetView(render_target_view.Get(), clear_color);
 	immediate_context->ClearDepthStencilView(depth_stencil_view.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	immediate_context->OMSetRenderTargets(1, render_target_view.GetAddressOf(), depth_stencil_view.Get());

@@ -48,12 +48,15 @@ float4 main(VS_OUT pin) : SV_TARGET
         L = normalize(-light_direction.xyz);
     }
 
-    float3 diffuse = color.rgb * max(0.05f, dot(N, L)) * attenuation * light_color_intensity.rgb * light_color_intensity.w;
+    float3 ambient = color.rgb * ambient_color_intensity.rgb * ambient_color_intensity.w;
+    float3 direct = color.rgb * max(0.0f, dot(N, L)) * attenuation * light_color_intensity.rgb * light_color_intensity.w;
+    float3 diffuse = ambient + direct;
     
     float3 V = normalize(camera_position.xyz - pin.world_position.xyz);
     float3 specular = pow(max(0, dot(N, normalize(V + L))), 128);
     
     //return color_map.Sample(anisotropic_sampler_state, pin.texcoord) * pin.color;
     
-    return float4(diffuse + specular * attenuation, alpha) * pin.color;
+    float3 specular_light = specular * attenuation * light_color_intensity.rgb * light_color_intensity.w;
+    return float4(diffuse + specular_light, alpha) * pin.color;
 }

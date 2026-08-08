@@ -29,6 +29,8 @@ float4 main(VS_OUT pin) : SV_TARGET
     {
         L = normalize(-light_direction.xyz);
     }
-    float3 diffuse = color.rgb * max(0.05f, dot(N, L)) * attenuation * light_color_intensity.rgb * light_color_intensity.w;
+    float3 ambient = color.rgb * ambient_color_intensity.rgb * ambient_color_intensity.w;
+    float3 direct = color.rgb * max(0.0f, dot(N, L)) * attenuation * light_color_intensity.rgb * light_color_intensity.w;
+    float3 diffuse = ambient + direct;
     return float4(diffuse, color.a) * pin.color;
 }

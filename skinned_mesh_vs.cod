@@ -20,7 +20,8 @@
 //   float4 camera_position;            // Offset:   80 Size:    16 [unused]
 //   float4 light_position_range;       // Offset:   96 Size:    16 [unused]
 //   float4 light_color_intensity;      // Offset:  112 Size:    16 [unused]
-//   float4 render_options;             // Offset:  128 Size:    16 [unused]
+//   float4 ambient_color_intensity;    // Offset:  128 Size:    16 [unused]
+//   float4 render_options;             // Offset:  144 Size:    16 [unused]
 //
 // }
 //
