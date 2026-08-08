@@ -157,7 +157,7 @@ void RacingGameScene::draw_editor_helpers(ID3D11DeviceContext* immediate_context
 		// 線の本数には上限を設け、誤操作で重くならないようにする。
 		const float spacing = (std::max)(editor_debug.grid_spacing, 0.1f);
 		const float half_size = (std::max)(editor_debug.grid_half_size, spacing);
-		const int line_count = (std::min)(static_cast<int>(half_size / spacing), 50);
+		const int line_count = (std::min)(static_cast<int>(half_size / spacing), 10);
 		const float length = line_count * spacing * 2.0f;
 		const XMFLOAT4 grid_color{ 0.34f, 0.38f, 0.46f, 1.0f };
 
