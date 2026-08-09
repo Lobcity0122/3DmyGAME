@@ -14,9 +14,10 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	camera_controller = std::make_unique<CameraController>();
 	player_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
 	stage_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage.obj");
+	background_mesh = std::make_unique<static_mesh>(device, L".\\resources\\skybox_side_chicken_gun\\haikei.obj");
+
 	// 見た目用stage.objとは別に、壁だけを入れたOBJを非表示でロードする。
 	collision_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage_collision.obj");
-	background_mesh = std::make_unique<static_mesh>(device, L".\\resources\\skybox_side_chicken_gun\\haikei.obj");
 	debug_cube = std::make_unique<cube>(device);
 	configure_object_transforms();
 
@@ -74,6 +75,14 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	background_rasterizer_desc.DepthClipEnable = TRUE;
 	if (FAILED(device->CreateRasterizerState(&background_rasterizer_desc,
 		background_rasterizer_state.GetAddressOf()))) return false;
+
+	// 当たり判定モデル確認専用。通常描画では使用せず、必要な時だけ赤い線で重ねる。
+	D3D11_RASTERIZER_DESC collision_rasterizer_desc{};
+	collision_rasterizer_desc.FillMode = D3D11_FILL_WIREFRAME;
+	collision_rasterizer_desc.CullMode = D3D11_CULL_NONE;
+	collision_rasterizer_desc.DepthClipEnable = TRUE;
+	if (FAILED(device->CreateRasterizerState(&collision_rasterizer_desc,
+		collision_wireframe_rasterizer_state.GetAddressOf()))) return false;
 	
 	// 初期 Transform から描画用ワールド行列を作る。
 	update_object_world_matrices();
@@ -83,6 +92,13 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 
 void PacmanGameScene::update(float elapsed_time)
 {
+	// 背景だけをゆっくり回し、宇宙空間が流れているように見せる。
+	if (editor_debug.rotate_background)
+	{
+		background_transform.rotation_degrees.y += editor_debug.background_rotation_speed * elapsed_time;
+		if (background_transform.rotation_degrees.y > 360.0f) background_transform.rotation_degrees.y -= 360.0f;
+		if (background_transform.rotation_degrees.y < -360.0f) background_transform.rotation_degrees.y += 360.0f;
+	}
 	// 右クリック中はステージ確認用のフリーカメラを優先し、車の操作と追従カメラを停止する。
 	bool mouse_input_allowed = true;
 #ifdef USE_IMGUI
@@ -116,7 +132,7 @@ void PacmanGameScene::configure_object_transforms()
 		// Blenderのグリッド中心とゲームのワールド原点を一致させる。
 		{ 0.0f, 0.0f, 0.0f },
 		{ 0.0f, 0.0f, 0.0f },
-		{ 25.0f, 25.0f, 25.0f }
+		{ 50.0f, 50.0f, 50.0f }
 	};
 
 	// 車は Player が Transform を保持するため、Player の setter で設定する。
@@ -255,6 +271,14 @@ void PacmanGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 	// Draw the course first, then draw the moving car on top of it using the depth buffer.
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1));
 	player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1));
+	if (editor_debug.show_collision_model)
+	{
+		Microsoft::WRL::ComPtr<ID3D11RasterizerState> previous_rasterizer;
+		immediate_context->RSGetState(previous_rasterizer.GetAddressOf());
+		immediate_context->RSSetState(collision_wireframe_rasterizer_state.Get());
+		collision_mesh->render(immediate_context, stage_world, XMFLOAT4(1.0f, 0.05f, 0.05f, 1.0f));
+		immediate_context->RSSetState(previous_rasterizer.Get());
+	}
 
 	// 背景カプセルは内側から見えるよう、背面カリングを無効にして描画する。
 	immediate_context->RSSetState(background_rasterizer_state.Get());
@@ -386,6 +410,12 @@ void PacmanGameScene::draw_hud()
 
 		XMFLOAT3 scale = player->get_scale();
 		if (ImGui::DragFloat3("Scale", &scale.x, 0.01f, 0.01f, 100.0f)) player->set_scale(scale);
+		float hover_amplitude = player->get_hover_amplitude();
+		if (ImGui::DragFloat("Hover amplitude", &hover_amplitude, 0.005f, 0.0f, 1.0f))
+			player->set_hover_amplitude(hover_amplitude);
+		float hover_frequency = player->get_hover_frequency();
+		if (ImGui::DragFloat("Hover frequency (Hz)", &hover_frequency, 0.05f, 0.0f, 10.0f))
+			player->set_hover_frequency(hover_frequency);
 		ImGui::PopID();
 	}
 	ImGui::End();
@@ -407,6 +437,13 @@ void PacmanGameScene::draw_hud()
 	{
 		ImGui::DragFloat("Axis length", &editor_debug.axis_length, 0.1f, 0.1f, 20.0f);
 	}
+	ImGui::Checkbox("Show collision model (red wireframe)", &editor_debug.show_collision_model);
+	ImGui::Checkbox("Rotate background", &editor_debug.rotate_background);
+	if (editor_debug.rotate_background)
+	{
+		ImGui::DragFloat("Background rotation speed (deg/s)", &editor_debug.background_rotation_speed,
+			0.1f, -90.0f, 90.0f, "%.2f");
+	}
 	ImGui::TextWrapped("Grid: XZ plane at world origin. Gizmo: X red, Y green, Z blue.");
 	ImGui::End();
 #endif
@@ -427,6 +464,7 @@ void PacmanGameScene::uninitialize()
 	shadow_depth_stencil_view.Reset();
 	shadow_depth_texture.Reset();
 	background_rasterizer_state.Reset();
+	collision_wireframe_rasterizer_state.Reset();
 	player.reset();
 	if (camera_controller) camera_controller->stop_editor_camera();
 	camera_controller.reset();

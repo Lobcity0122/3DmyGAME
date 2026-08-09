@@ -71,6 +71,9 @@ private:
 		bool enable_editor_camera = true;
 		bool show_grid = true;
 		bool show_axis_gizmo = true;
+		bool show_collision_model = false;
+		bool rotate_background = true;
+		float background_rotation_speed = 1.0f; // degrees / second
 		float grid_half_size = 20.0f;
 		float grid_spacing = 1.0f;
 		float axis_length = 2.0f;
@@ -96,6 +99,7 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11RasterizerState> shadow_rasterizer_state;
 	// カプセル背景を内側から見るため、背面も描画する専用ラスタライザ。
 	Microsoft::WRL::ComPtr<ID3D11RasterizerState> background_rasterizer_state;
+	Microsoft::WRL::ComPtr<ID3D11RasterizerState> collision_wireframe_rasterizer_state;
 	DirectX::XMFLOAT4X4 stage_world{};
 	DirectX::XMFLOAT4X4 background_world{};
 	float total_time = 0.0f;

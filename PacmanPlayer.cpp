@@ -12,6 +12,7 @@ void PacmanPlayer::initialize()
 	angle = { 0.0f, 0.0f, 0.0f };
 	move_direction = { 0.0f, 1.0f };
 	requested_direction = move_direction;
+	hover_time = 0.0f;
 	update_transform();
 }
 
@@ -46,6 +47,7 @@ void PacmanPlayer::read_direction_input()
 
 void PacmanPlayer::update(float elapsed_time, const static_mesh* collision_mesh, const XMFLOAT4X4& collision_world)
 {
+	hover_time += elapsed_time;
 	read_direction_input();
 
 	// 当たり判定を持たない基礎状態では、入力された方向へすぐに切り替えて前進する。
@@ -71,8 +73,9 @@ void PacmanPlayer::update(float elapsed_time, const static_mesh* collision_mesh,
 
 void PacmanPlayer::update_transform()
 {
+	const float hover_offset = std::sinf(hover_time * hover_frequency * XM_2PI) * hover_amplitude;
 	XMStoreFloat4x4(&transform,
 		XMMatrixScaling(scale.x, scale.y, scale.z) *
 		XMMatrixRotationY(angle.y) *
-		XMMatrixTranslation(position.x, position.y, position.z));
+		XMMatrixTranslation(position.x, position.y + hover_offset, position.z));
 }
