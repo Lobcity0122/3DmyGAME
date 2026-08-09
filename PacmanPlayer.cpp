@@ -1,5 +1,6 @@
 #define NOMINMAX
 #include "PacmanPlayer.h"
+#include "Collision.h"
 #include <windows.h>
 #include <cmath>
 
@@ -43,7 +44,7 @@ void PacmanPlayer::read_direction_input()
 	previous_reverse_pressed = reverse_pressed;
 }
 
-void PacmanPlayer::update(float elapsed_time)
+void PacmanPlayer::update(float elapsed_time, const static_mesh* collision_mesh, const XMFLOAT4X4& collision_world)
 {
 	read_direction_input();
 
@@ -52,8 +53,18 @@ void PacmanPlayer::update(float elapsed_time)
 	{
 		move_direction = requested_direction;
 	}
-	position.x += move_direction.x * move_speed * elapsed_time;
-	position.z += move_direction.y * move_speed * elapsed_time;
+	XMFLOAT3 next_position = position;
+	next_position.x += move_direction.x * move_speed * elapsed_time;
+	next_position.z += move_direction.y * move_speed * elapsed_time;
+
+	// まずは自機中心から前方へ1本だけレイを飛ばす、最小構成の判定。
+	// 壁専用モデル以外は判定しないため、見た目の床・装飾には引っ掛からない。
+	XMFLOAT3 hit_position{}, hit_normal{};
+	if (collision_mesh == nullptr || !Collision::RayCastStaticMesh(position, next_position,
+		collision_world, collision_mesh, hit_position, hit_normal))
+	{
+		position = next_position;
+	}
 	angle.y = std::atan2(move_direction.x, move_direction.y);
 	update_transform();
 }

@@ -27,6 +27,7 @@ private:
 	// 2つの独立したモデル読み込み用パス。ここに並べておくことで、違いや使い方が一目で比較できる。
 	std::unique_ptr<static_mesh> player_mesh;       // OBJ（プレイヤー）
 	std::unique_ptr<static_mesh> stage_mesh;        // OBJ（静的メッシュ：コース）
+	std::unique_ptr<static_mesh> collision_mesh;    // 描画しない壁専用OBJ（当たり判定）
 	std::unique_ptr<static_mesh> background_mesh;  // OBJ（背景用の静的メッシュ）
 	std::unique_ptr<cube> debug_cube;               // グリッドと軸の線を描くための簡易プリミティブ
 

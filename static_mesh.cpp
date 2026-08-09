@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <string>
 #include <fstream>
+#include <sstream>
 #include <algorithm>
 #include <cmath>
 #include "static_mesh.h"
@@ -67,33 +68,41 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
         }
         else if (0 == wcscmp(command, L"f"))
         {
-            // 三角形(面)の読み込み
-            for (size_t i = 0; i < 3; i++)
+            // OBJの面は三角形に限らない。四角形・n角形も扇形分割してGPU用の三角形へ変換する。
+            std::wstring face_line;
+            std::getline(fin, face_line);
+            std::wistringstream face_stream(face_line);
+            std::vector<vertex> face_vertices;
+            std::wstring token;
+            while (face_stream >> token)
             {
-                vertex vertex;
-                size_t v, vt, vn;
+                vertex parsed_vertex{};
+                const size_t first_slash = token.find(L'/');
+                const size_t second_slash = first_slash == std::wstring::npos ? std::wstring::npos : token.find(L'/', first_slash + 1);
+                const int position_index = std::stoi(token.substr(0, first_slash));
+                parsed_vertex.position = positions.at(position_index - 1);
 
-                fin >> v;
-                vertex.position = positions.at(v - 1);
-                if (L'/' == fin.peek())
+                if (first_slash != std::wstring::npos && second_slash != first_slash + 1)
                 {
-                    fin.ignore(1);
-                    if (L'/' != fin.peek())
-                    {
-                        fin >> vt;
-                        vertex.texcoord = texcoords.at(vt - 1);
-                    }
-                    if (L'/' == fin.peek())
-                    {
-                        fin.ignore(1);
-                        fin >> vn;
-                        vertex.normal = normals.at(vn - 1);
-                    }
+                    const int texcoord_index = std::stoi(token.substr(first_slash + 1, second_slash - first_slash - 1));
+                    parsed_vertex.texcoord = texcoords.at(texcoord_index - 1);
                 }
-                vertices.push_back(vertex);
+                if (second_slash != std::wstring::npos && second_slash + 1 < token.size())
+                {
+                    const int normal_index = std::stoi(token.substr(second_slash + 1));
+                    parsed_vertex.normal = normals.at(normal_index - 1);
+                }
+                face_vertices.push_back(parsed_vertex);
+            }
+            for (size_t index = 1; index + 1 < face_vertices.size(); ++index)
+            {
+                vertices.push_back(face_vertices[0]);
+                vertices.push_back(face_vertices[index]);
+                vertices.push_back(face_vertices[index + 1]);
+                indices.push_back(current_index++);
+                indices.push_back(current_index++);
                 indices.push_back(current_index++);
             }
-            fin.ignore(1024, L'\n');
         }
         else if (0 == wcscmp(command, L"mtllib"))
         {
@@ -113,31 +122,34 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
             fin.ignore(1024, L'\n');
         }
     }
-    std::vector<subset>::reverse_iterator iterator = subsets.rbegin();
-    iterator->index_count = static_cast<uint32_t>(indices.size()) - iterator->index_start;
-    for (iterator = subsets.rbegin() + 1; iterator != subsets.rend(); ++iterator)
+    if (subsets.empty() && !indices.empty())
     {
-      iterator->index_count = (iterator - 1)->index_start - iterator->index_start;
+        // MTL/usemtl を持たないOBJでも、描画・衝突用データを最後まで生成する。
+        subsets.push_back({ L"default", 0, static_cast<uint32_t>(indices.size()) });
+    }
+    else if (!subsets.empty())
+    {
+        std::vector<subset>::reverse_iterator iterator = subsets.rbegin();
+        iterator->index_count = static_cast<uint32_t>(indices.size()) - iterator->index_start;
+        for (iterator = subsets.rbegin() + 1; iterator != subsets.rend(); ++iterator)
+        {
+            iterator->index_count = (iterator - 1)->index_start - iterator->index_start;
+        }
     }
 
     fin.close();
 
-	// MTLファイルを開く前に確認する
-    if(mtl_filenames.empty())
+	// MTLは任意。衝突専用OBJのようにMTLが無い場合は、既定マテリアルで続行する。
+    if (!mtl_filenames.empty())
     {
-		// エラーハンドリング(ログor既定マテリアル)
-        return;
-    }
-   
-    std::filesystem::path mtl_filename(obj_filename);
-    mtl_filename.replace_filename(std::filesystem::path(mtl_filenames[0]).filename());
+        std::filesystem::path mtl_filename(obj_filename);
+        mtl_filename.replace_filename(std::filesystem::path(mtl_filenames[0]).filename());
+        fin.open(mtl_filename);
+        //_ASSERT_EXPR(fin, L"'MTL file not found.");
 
-    fin.open(mtl_filename);
-    //_ASSERT_EXPR(fin, L"'MTL file not found.");
-
-    while (fin)
-    {
-        fin >> command;
+        while (fin)
+        {
+            fin >> command;
         if (0 == wcscmp(command, L"newmtl"))
         {
             fin.ignore();
@@ -183,13 +195,13 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
 			fin >> materials.rbegin()->Ns;
 			fin.ignore(1024, L'\n');
 		}
-        else
-        {
-            fin.ignore(1024, L'\n');
+            else
+            {
+                fin.ignore(1024, L'\n');
+            }
         }
+        fin.close();  // ファイルを閉じる
     }
-
-    fin.close();  // ファイルを閉じる
 
     // テクスチャのロード、シェーダーリソースビューオブジェクトの生成をおこなう
     D3D11_TEXTURE2D_DESC texture2d_desc{};

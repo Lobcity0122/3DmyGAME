@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DirectXMath.h>
+class static_mesh;
 
 // パックマン型のプレイヤー。
 // 加速・ドリフトではなく、迷路のマス目に沿った一定速度の4方向移動を管理する。
@@ -8,7 +9,8 @@ class PacmanPlayer
 {
 public:
 	void initialize();
-	void update(float elapsed_time);
+	// collision_mesh は描画しない壁専用OBJ。指定時だけ前方レイとの交差を調べる。
+	void update(float elapsed_time, const static_mesh* collision_mesh, const DirectX::XMFLOAT4X4& collision_world);
 
 	const DirectX::XMFLOAT3& get_position() const { return position; }
 	void set_position(const DirectX::XMFLOAT3& value) { position = value; }

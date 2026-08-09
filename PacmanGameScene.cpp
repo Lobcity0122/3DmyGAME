@@ -14,6 +14,8 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	camera_controller = std::make_unique<CameraController>();
 	player_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
 	stage_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage.obj");
+	// 見た目用stage.objとは別に、壁だけを入れたOBJを非表示でロードする。
+	collision_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage_collision.obj");
 	background_mesh = std::make_unique<static_mesh>(device, L".\\resources\\skybox_side_chicken_gun\\haikei.obj");
 	debug_cube = std::make_unique<cube>(device);
 	configure_object_transforms();
@@ -90,7 +92,7 @@ void PacmanGameScene::update(float elapsed_time)
 		elapsed_time, GetActiveWindow(), editor_debug.enable_editor_camera, mouse_input_allowed);
 	if (!is_editing_camera)
 	{
-		player->update(elapsed_time);
+		player->update(elapsed_time, collision_mesh.get(), stage_world);
 		camera_controller->update(elapsed_time, player->get_position(), player->get_angle().y,
 			player->get_move_speed(), false, 0.0f);
 	}
@@ -415,6 +417,7 @@ void PacmanGameScene::uninitialize()
 	// framework が管理している Direct3D デバイスが破棄される前に、GPUリソースを使うオブジェクトを解放
 	player_mesh.reset();
 	stage_mesh.reset();
+	collision_mesh.reset();
 	background_mesh.reset();
 	debug_cube.reset();
 	scene_constant_buffer.Reset();
