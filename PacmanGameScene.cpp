@@ -90,7 +90,7 @@ void PacmanGameScene::update(float elapsed_time)
 		elapsed_time, GetActiveWindow(), editor_debug.enable_editor_camera, mouse_input_allowed);
 	if (!is_editing_camera)
 	{
-		player->update(elapsed_time, stage_mesh.get(), stage_world);
+		player->update(elapsed_time);
 		camera_controller->update(elapsed_time, player->get_position(), player->get_angle().y,
 			player->get_move_speed(), false, 0.0f);
 	}
@@ -114,14 +114,15 @@ void PacmanGameScene::configure_object_transforms()
 		// Blenderのグリッド中心とゲームのワールド原点を一致させる。
 		{ 0.0f, 0.0f, 0.0f },
 		{ 0.0f, 0.0f, 0.0f },
-		{ 50.0f, 50.0f, 50.0f }
+		{ 25.0f, 25.0f, 25.0f }
 	};
 
 	// 車は Player が Transform を保持するため、Player の setter で設定する。
-	player->set_position({ 4.0f, 0.5f, -4.225f });
+	// X=4.013 は左右壁の実測中点。Z=-4.0 の開始通路中央に置く。
+	player->set_position({ 4.013f, 0.5f, -4.0f });
 	player->set_angle({ XMConvertToRadians(0.0f), XMConvertToRadians(0.0f), XMConvertToRadians(0.0f) });
-	// Cubeの実寸は一辺2なので、0.2倍で一辺0.4。
-	// 現在の迷路の最狭通路より小さく、壁との間に少し余白が残るサイズにする。
+	// Cubeの実寸は一辺2なので、0.3倍で一辺0.6。
+	// 開始地点の通路幅（約0.66?0.70）へ、ほぼ隙間なく収まる大きさにする。
 	player->set_scale({ 0.3f, 0.3f, 0.3f });
 }
 
@@ -351,12 +352,14 @@ void PacmanGameScene::draw_hud()
 	ImGui::Begin("Object Transform Debug");
 	const auto edit_transform = [](const char* name, ObjectTransform& transform)
 	{
-		if (!ImGui::CollapsingHeader(name, ImGuiTreeNodeFlags_DefaultOpen)) return;
+		if (!ImGui::CollapsingHeader(name, ImGuiTreeNodeFlags_DefaultOpen)) return false;
 		ImGui::PushID(name);
-		ImGui::DragFloat3("Position", &transform.position.x, 0.1f);
-		ImGui::DragFloat3("Rotation (degrees)", &transform.rotation_degrees.x, 1.0f);
-		ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f, 0.01f, 100.0f);
+		const bool changed =
+			ImGui::DragFloat3("Position", &transform.position.x, 0.1f) |
+			ImGui::DragFloat3("Rotation (degrees)", &transform.rotation_degrees.x, 1.0f) |
+			ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f, 0.01f, 100.0f);
 		ImGui::PopID();
+		return changed;
 	};
 
 	edit_transform("Stage", stage_transform);

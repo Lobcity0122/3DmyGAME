@@ -1,6 +1,5 @@
 #define NOMINMAX
 #include "PacmanPlayer.h"
-#include "Collision.h"
 #include <windows.h>
 #include <cmath>
 
@@ -8,7 +7,7 @@ using namespace DirectX;
 
 void PacmanPlayer::initialize()
 {
-	position = { 4.0f, 0.5f, -4.225f };
+	position = { 4.0f, 0.5f, -4.0f };
 	angle = { 0.0f, 0.0f, 0.0f };
 	move_direction = { 0.0f, 1.0f };
 	requested_direction = move_direction;
@@ -44,31 +43,17 @@ void PacmanPlayer::read_direction_input()
 	previous_reverse_pressed = reverse_pressed;
 }
 
-void PacmanPlayer::update(float elapsed_time, const static_mesh* stage_mesh, const XMFLOAT4X4& stage_world)
+void PacmanPlayer::update(float elapsed_time)
 {
 	read_direction_input();
 
-	// 方向転換時は、横方向の座標を最寄りのグリッドへ吸着する。
-	// これにより自由移動ではなく、迷路通路を曲がる感覚になる。
+	// 当たり判定を持たない基礎状態では、入力された方向へすぐに切り替えて前進する。
 	if (requested_direction.x != move_direction.x || requested_direction.y != move_direction.y)
 	{
-		if (requested_direction.x != 0.0f) position.z = std::round(position.z / grid_size) * grid_size;
-		if (requested_direction.y != 0.0f) position.x = std::round(position.x / grid_size) * grid_size;
 		move_direction = requested_direction;
 	}
-
-	const XMFLOAT3 previous_position = position;
-	XMFLOAT3 next_position = position;
-	next_position.x += move_direction.x * move_speed * elapsed_time;
-	next_position.z += move_direction.y * move_speed * elapsed_time;
-
-	// ステージの全三角形に対して、進行先へのレイが壁へ交差するか調べる。
-	// 交差したフレームは前進せず、壁の手前で止まる。
-	XMFLOAT3 hit_position{}, hit_normal{};
-	if (!Collision::RayCastStaticMesh(previous_position, next_position, stage_world, stage_mesh, hit_position, hit_normal))
-	{
-		position = next_position;
-	}
+	position.x += move_direction.x * move_speed * elapsed_time;
+	position.z += move_direction.y * move_speed * elapsed_time;
 	angle.y = std::atan2(move_direction.x, move_direction.y);
 	update_transform();
 }
