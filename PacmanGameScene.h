@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Scene.h"
-#include "Player.h"
+#include "PacmanPlayer.h"
 #include "CameraController.h"
 #include "static_mesh.h"
 #include "skinned_mesh.h"
@@ -9,23 +9,23 @@
 #include <memory>
 #include <wrl.h>
 
-// このクラスはレース専用の状態のみを管理。framework 側はどのモデルが使われているかを知らない。
-class RacingGameScene final : public Scene
+// このクラスは3Dパックマンライクなゲーム状態だけを管理する。
+class PacmanGameScene final : public Scene
 {
 public:
 	bool initialize(ID3D11Device* device) override;
 	void update(float elapsed_time) override;
 	void render(ID3D11DeviceContext* immediate_context, float elapsed_time) override;
 	void uninitialize() override;
-	SceneType get_type() const override { return SceneType::RACING; }
+	SceneType get_type() const override { return SceneType::PACMAN; }
 
 private:
-	// ゲーム状態: Playerが入力/移動を扱い、CameraControllerがそれをビューカメラへ変換する。
-	std::unique_ptr<Player> player;
+	// PacmanPlayerがグリッド移動を扱い、CameraControllerが追従ビューを作る。
+	std::unique_ptr<PacmanPlayer> player;
 	std::unique_ptr<CameraController> camera_controller;
 
 	// 2つの独立したモデル読み込み用パス。ここに並べておくことで、違いや使い方が一目で比較できる。
-	std::unique_ptr<static_mesh> car_mesh;          // OBJ（静的メッシュ：車など）
+	std::unique_ptr<static_mesh> player_mesh;       // OBJ（プレイヤー）
 	std::unique_ptr<static_mesh> stage_mesh;        // OBJ（静的メッシュ：コース）
 	std::unique_ptr<static_mesh> background_mesh;  // OBJ（背景用の静的メッシュ）
 	std::unique_ptr<cube> debug_cube;               // グリッドと軸の線を描くための簡易プリミティブ

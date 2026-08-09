@@ -233,7 +233,9 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
         }
     }
 
-    create_com_buffers(device, vertices.data(), vertices.size(), indices.data(), indices.size());
+	create_com_buffers(device, vertices.data(), vertices.size(), indices.data(), indices.size());
+	cpu_vertices = vertices;
+	cpu_indices = indices;
 
     D3D11_INPUT_ELEMENT_DESC input_element_desc[]
     {

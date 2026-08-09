@@ -4,6 +4,8 @@
 #include <directxmath.h>
 #include <wrl.h>
 #include <vector>
+#include <string>
+#include <cfloat>
 
 using namespace Microsoft::WRL;
 
@@ -30,6 +32,8 @@ public:
 		uint32_t index_count{ 0 }; // number of vertices (indices)  インデックスの数
 	};
 	std::vector<subset> subsets;
+	const std::vector<vertex>& get_cpu_vertices() const { return cpu_vertices; }
+	const std::vector<uint32_t>& get_cpu_indices() const { return cpu_indices; }
 
 private:
 	ComPtr<ID3D11Buffer> vertex_buffer;
@@ -54,6 +58,8 @@ private:
 		ComPtr<ID3D11ShaderResourceView> shader_resource_views[2];
 	};
 	std::vector<material> materials;
+	std::vector<vertex> cpu_vertices;
+	std::vector<uint32_t> cpu_indices;
 
 	// バウンディングボックス用のメンバ変数の追加
 	DirectX::XMFLOAT3 bounding_box_min{ FLT_MAX, FLT_MAX, FLT_MAX };    // バウンディングボックスの最小座標

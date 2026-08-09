@@ -1,4 +1,4 @@
-#include "RacingGameScene.h"
+#include "PacmanGameScene.h"
 #include <cmath>
 #ifdef USE_IMGUI
 #include "imgui/imgui.h"
@@ -6,13 +6,13 @@
 
 using namespace DirectX;
 
-bool RacingGameScene::initialize(ID3D11Device* device)
+bool PacmanGameScene::initialize(ID3D11Device* device)
 {
 	// 1回のみ生成: CPUオブジェクトを生成し、そのコンストラクタ内でGPUリソースを作成
-	player = std::make_unique<Player>();
+	player = std::make_unique<PacmanPlayer>();
 	player->initialize();
 	camera_controller = std::make_unique<CameraController>();
-	car_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
+	player_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
 	stage_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage.obj");
 	background_mesh = std::make_unique<static_mesh>(device, L".\\resources\\skybox_side_chicken_gun\\haikei.obj");
 	debug_cube = std::make_unique<cube>(device);
@@ -27,8 +27,8 @@ bool RacingGameScene::initialize(ID3D11Device* device)
 
 	// 方向ライトの影を保存する深度テクスチャ。深度ビューとシェーダー読み込みビューを同じテクスチャから作る。
 	D3D11_TEXTURE2D_DESC shadow_texture_desc{};
-	shadow_texture_desc.Width = 2048;
-	shadow_texture_desc.Height = 2048;
+	shadow_texture_desc.Width = 1024;
+	shadow_texture_desc.Height = 1024;
 	shadow_texture_desc.MipLevels = 1;
 	shadow_texture_desc.ArraySize = 1;
 	shadow_texture_desc.Format = DXGI_FORMAT_R32_TYPELESS;
@@ -79,7 +79,7 @@ bool RacingGameScene::initialize(ID3D11Device* device)
 	return true;
 }
 
-void RacingGameScene::update(float elapsed_time)
+void PacmanGameScene::update(float elapsed_time)
 {
 	// 右クリック中はステージ確認用のフリーカメラを優先し、車の操作と追従カメラを停止する。
 	bool mouse_input_allowed = true;
@@ -90,15 +90,15 @@ void RacingGameScene::update(float elapsed_time)
 		elapsed_time, GetActiveWindow(), editor_debug.enable_editor_camera, mouse_input_allowed);
 	if (!is_editing_camera)
 	{
-		player->update(elapsed_time, nullptr);
+		player->update(elapsed_time, stage_mesh.get(), stage_world);
 		camera_controller->update(elapsed_time, player->get_position(), player->get_angle().y,
-			player->get_current_speed(), player->is_drifting(), player->get_drift_direction());
+			player->get_move_speed(), false, 0.0f);
 	}
 	update_object_world_matrices();
 	total_time += elapsed_time;
 }
 
-void RacingGameScene::configure_object_transforms()
+void PacmanGameScene::configure_object_transforms()
 {
 	// 各モデルの初期配置はこの関数だけで決める。
 	// position: ワールド座標、rotation_degrees: X/Y/Z 軸の回転（度）、scale: 拡縮率。
@@ -118,12 +118,14 @@ void RacingGameScene::configure_object_transforms()
 	};
 
 	// 車は Player が Transform を保持するため、Player の setter で設定する。
-	player->set_position({ 0.0f, 0.0f, 0.0f });
+	player->set_position({ 4.0f, 0.5f, -4.225f });
 	player->set_angle({ XMConvertToRadians(0.0f), XMConvertToRadians(0.0f), XMConvertToRadians(0.0f) });
-	player->set_scale({ 1.0f, 1.0f, 1.0f });
+	// Cubeの実寸は一辺2なので、0.2倍で一辺0.4。
+	// 現在の迷路の最狭通路より小さく、壁との間に少し余白が残るサイズにする。
+	player->set_scale({ 0.3f, 0.3f, 0.3f });
 }
 
-void RacingGameScene::update_object_world_matrices()
+void PacmanGameScene::update_object_world_matrices()
 {
 	// 行列は「拡縮 → 回転 → 平行移動」の順に掛ける。
 	// DirectXMath の回転関数はラジアンなので、UIで保持した度をここで変換する。
@@ -143,7 +145,7 @@ void RacingGameScene::update_object_world_matrices()
 	XMStoreFloat4x4(&background_world, make_world_matrix(background_transform));
 }
 
-void RacingGameScene::render(ID3D11DeviceContext* immediate_context, float)
+void PacmanGameScene::render(ID3D11DeviceContext* immediate_context, float)
 {
 	// 固定された描画パイプライン順序: 共有カメラ/ライトデータ設定 -> 3Dモデル描画 -> UIコマンド発行
 	render_shadow_map(immediate_context);
@@ -152,7 +154,7 @@ void RacingGameScene::render(ID3D11DeviceContext* immediate_context, float)
 	draw_hud();
 }
 
-XMMATRIX RacingGameScene::calculate_light_view_projection() const
+XMMATRIX PacmanGameScene::calculate_light_view_projection() const
 {
 	// 現段階ではステージ全体を覆う1枚のシャドウマップ。後で近景/中景/遠景に分けるCSMへ拡張できる。
 	const XMVECTOR target = XMVectorSet(0.0f, 5.0f, 0.0f, 1.0f);
@@ -163,7 +165,7 @@ XMMATRIX RacingGameScene::calculate_light_view_projection() const
 	return view * projection;
 }
 
-void RacingGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
+void PacmanGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
 {
 	if (!light_settings.use_shadows || light_settings.use_point_light) return;
 
@@ -178,8 +180,8 @@ void RacingGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
 	immediate_context->RSGetState(previous_rasterizer.GetAddressOf());
 
 	D3D11_VIEWPORT shadow_viewport{};
-	shadow_viewport.Width = 2048.0f;
-	shadow_viewport.Height = 2048.0f;
+	shadow_viewport.Width = 1024.0f;
+	shadow_viewport.Height = 1024.0f;
 	shadow_viewport.MinDepth = 0.0f;
 	shadow_viewport.MaxDepth = 1.0f;
 	immediate_context->OMSetRenderTargets(0, nullptr, shadow_depth_stencil_view.Get());
@@ -194,14 +196,14 @@ void RacingGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
 
 	// 背景は影を落とさない。ステージと車だけを深度として記録する。
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1), nullptr, true);
-	car_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
+	player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
 
 	immediate_context->OMSetRenderTargets(1, previous_rtv.GetAddressOf(), previous_dsv.Get());
 	immediate_context->RSSetViewports(1, &previous_viewport);
 	immediate_context->RSSetState(previous_rasterizer.Get());
 }
 
-void RacingGameScene::update_scene_constants(ID3D11DeviceContext* immediate_context)
+void PacmanGameScene::update_scene_constants(ID3D11DeviceContext* immediate_context)
 {
 	D3D11_VIEWPORT viewport{};
 	UINT viewport_count = 1;
@@ -244,19 +246,20 @@ void RacingGameScene::update_scene_constants(ID3D11DeviceContext* immediate_cont
 	immediate_context->PSSetSamplers(3, 1, shadow_sampler_state.GetAddressOf());
 }
 
-void RacingGameScene::draw_models(ID3D11DeviceContext* immediate_context)
+void PacmanGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 {
 	// 各モデルが自身のシェーダー、ジオメトリ、テクスチャ、および b0（オブジェクト固有の定数バッファ）をバインドして描画
 	// Draw the course first, then draw the moving car on top of it using the depth buffer.
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1));
-	car_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1));
+	player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1));
+
 	// 背景カプセルは内側から見えるよう、背面カリングを無効にして描画する。
 	immediate_context->RSSetState(background_rasterizer_state.Get());
 	background_mesh->render(immediate_context, background_world, XMFLOAT4(1, 1, 1, 1));
 	draw_editor_helpers(immediate_context);
 }
 
-void RacingGameScene::draw_editor_helpers(ID3D11DeviceContext* immediate_context)
+void PacmanGameScene::draw_editor_helpers(ID3D11DeviceContext* immediate_context)
 {
 	if (!editor_debug.show_grid && !editor_debug.show_axis_gizmo) return;
 
@@ -298,26 +301,24 @@ void RacingGameScene::draw_editor_helpers(ID3D11DeviceContext* immediate_context
 	}
 }
 
-void RacingGameScene::draw_hud()
+void PacmanGameScene::draw_hud()
 {
 #ifdef USE_IMGUI
 	// framework 側が Scene::update の前に ImGui の新規フレームを開始し、Scene::render の後に描画を確定させる
-	ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_Once);
-	ImGui::SetNextWindowSize(ImVec2(300, 160), ImGuiCond_Once);
-	const ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse;
-	ImGui::Begin("Racing HUD", nullptr, flags);
-	ImGui::Text("SPEED: %.1f km/h", player->get_current_speed() * 3.6f);
-	ImGui::ProgressBar(player->get_current_speed() / player->get_top_speed(), ImVec2(-1, 20));
-	ImGui::TextColored(player->is_drifting() ? ImVec4(1, 0.5f, 0, 1) : ImVec4(0.5f, 0.5f, 0.5f, 1),
-		player->is_drifting() ? "DRIFT!" : "DRIVE");
+	ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(300, 160), ImGuiCond_FirstUseEver);
+	// HUDもほかのデバッグウィンドウと同様に、移動・サイズ変更・折り畳みを許可する。
+	ImGui::Begin("Pacman HUD");
+	ImGui::Text("MOVE SPEED: %.1f", player->get_move_speed());
+	ImGui::Text("AUTO MOVE  A: left  D: right  S: reverse");
 	const int minutes = static_cast<int>(total_time) / 60;
 	const float seconds = std::fmod(total_time, 60.0f);
 	ImGui::Text("TIME: %02d:%05.2f", minutes, seconds);
 	ImGui::End();
 
 	// This window edits the values that will be copied to the b1 scene constant buffer next frame.
-	ImGui::SetNextWindowPos(ImVec2(20, 200), ImGuiCond_Once);
-	ImGui::SetNextWindowSize(ImVec2(360, 0), ImGuiCond_Once);
+	ImGui::SetNextWindowPos(ImVec2(20, 200), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(360, 0), ImGuiCond_FirstUseEver);
 	ImGui::Begin("Lighting / Texture Debug");
 	ImGui::Checkbox("Use point light", &light_settings.use_point_light);
 	ImGui::Checkbox("Enable directional shadows", &light_settings.use_shadows);
@@ -345,8 +346,8 @@ void RacingGameScene::draw_hud()
 
 	// 現在シーンに配置している各モデルの Transform を個別に確認・調整する画面。
 	// 車は Player が保持するため、ここで設定してもその後は通常どおり操作入力で動かせる。
-	ImGui::SetNextWindowPos(ImVec2(400, 20), ImGuiCond_Once);
-	ImGui::SetNextWindowSize(ImVec2(330, 0), ImGuiCond_Once);
+	ImGui::SetNextWindowPos(ImVec2(400, 20), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(330, 0), ImGuiCond_FirstUseEver);
 	ImGui::Begin("Object Transform Debug");
 	const auto edit_transform = [](const char* name, ObjectTransform& transform)
 	{
@@ -361,9 +362,9 @@ void RacingGameScene::draw_hud()
 	edit_transform("Stage", stage_transform);
 	edit_transform("Background", background_transform);
 
-	if (ImGui::CollapsingHeader("Car / Player", ImGuiTreeNodeFlags_DefaultOpen))
+	if (ImGui::CollapsingHeader("Pacman Player", ImGuiTreeNodeFlags_DefaultOpen))
 	{
-		ImGui::PushID("CarPlayer");
+		ImGui::PushID("PacmanPlayer");
 		XMFLOAT3 position = player->get_position();
 		if (ImGui::DragFloat3("Position", &position.x, 0.1f)) player->set_position(position);
 
@@ -384,8 +385,8 @@ void RacingGameScene::draw_hud()
 	}
 	ImGui::End();
 
-	ImGui::SetNextWindowPos(ImVec2(400, 430), ImGuiCond_Once);
-	ImGui::SetNextWindowSize(ImVec2(300, 0), ImGuiCond_Once);
+	ImGui::SetNextWindowPos(ImVec2(400, 430), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(300, 0), ImGuiCond_FirstUseEver);
 	ImGui::Begin("Editor Helpers");
 	ImGui::Checkbox("Enable RMB editor camera", &editor_debug.enable_editor_camera);
 	ImGui::TextUnformatted("Hold RMB: look / WASD: move / Q,E: down,up / Shift: fast");
@@ -406,10 +407,10 @@ void RacingGameScene::draw_hud()
 #endif
 }
 
-void RacingGameScene::uninitialize()
+void PacmanGameScene::uninitialize()
 {
 	// framework が管理している Direct3D デバイスが破棄される前に、GPUリソースを使うオブジェクトを解放
-	car_mesh.reset();
+	player_mesh.reset();
 	stage_mesh.reset();
 	background_mesh.reset();
 	debug_cube.reset();

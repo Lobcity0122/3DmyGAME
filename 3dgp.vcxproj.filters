@@ -70,13 +70,13 @@
     <ClCompile Include="Collision.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="Player.cpp">
+    <ClCompile Include="PacmanPlayer.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="CameraController.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="RacingGameScene.cpp">
+    <ClCompile Include="PacmanGameScene.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
   </ItemGroup>
@@ -141,13 +141,13 @@
     <ClInclude Include="VehicleStatus.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="Player.h">
+    <ClInclude Include="PacmanPlayer.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="CameraController.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="RacingGameScene.h">
+    <ClInclude Include="PacmanGameScene.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="Scene.h">

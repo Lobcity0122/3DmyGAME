@@ -2,6 +2,7 @@
 
 #include <DirectXMath.h>
 #include "skinned_mesh.h" // skinned_meshを使うためインクルード
+#include "static_mesh.h"
 
 namespace Collision
 {
@@ -23,4 +24,9 @@ namespace Collision
         const skinned_mesh* model,
         DirectX::XMFLOAT3& hitPosition,
         DirectX::XMFLOAT3& hitNormal);
+
+	// レイと static_mesh 全体（全ポリゴン）の交差判定
+    bool RayCastStaticMesh(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end,
+        const DirectX::XMFLOAT4X4& worldMatrix, const static_mesh* model,
+        DirectX::XMFLOAT3& hitPosition, DirectX::XMFLOAT3& hitNormal);
 }

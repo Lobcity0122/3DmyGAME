@@ -55,15 +55,6 @@ void CameraController::update(float elapsedTime, const DirectX::XMFLOAT3& player
 	currentFocus.y = Damp(currentFocus.y, idealFocus.y, focusFollowSpeed, elapsedTime);
 	currentFocus.z = Damp(currentFocus.z, idealFocus.z, focusFollowSpeed, elapsedTime);
 
-	// 振動効果
-	if (playerSpeed > 2.0f)
-	{
-		shakeTimer += elapsedTime * 15.0f;
-		float intensity = (playerSpeed / 30.0f) * 0.1f * (isDrifting ? 1.5f : 1.0f);
-		currentEye.x += std::sinf(shakeTimer) * intensity * 0.05f;
-		currentEye.y += std::cosf(shakeTimer * 1.3f) * intensity * 0.05f;
-	}
-
 	// ドリフト時の傾き（ロール）
 	float targetRoll = 0.0f;
 	if (playerSpeed > 5.0f)

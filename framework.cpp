@@ -1,8 +1,11 @@
 #include "framework.h"
-#include "RacingGameScene.h"
+#include "PacmanGameScene.h"
 #include <chrono>
 #include <cmath>
 #include <sstream>
+#include <mmsystem.h>
+
+#pragma comment(lib, "winmm.lib")
 
 using namespace Microsoft::WRL;
 
@@ -86,7 +89,7 @@ bool framework::initialize()
 	viewport.MaxDepth = 1.0f;
 	immediate_context->RSSetViewports(1, &viewport);
 
-	change_scene(SceneType::RACING);
+	change_scene(SceneType::PACMAN);
 	return current_scene != nullptr;
 }
 
@@ -94,9 +97,19 @@ bool framework::initialize()
 int framework::run()
 {
 	if (!initialize()) return 0;
+	// Sleep() の既定粒度は約15.6msで、120FPS（8.33ms）を正確に制限できない。
+	// 1ms粒度を要求し、残りの短時間だけを待機する。
+	timeBeginPeriod(1);
 #ifdef USE_IMGUI
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
+	// ImGuiの位置・サイズ・開閉状態は、実行フォルダの専用INIへ保存する。
+	// IniFilenameをnullptrにして明示的に読み書きすることで、保存タイミングと保存先を固定する。
+	ImGui::GetIO().IniFilename = nullptr;
+	// レイアウト変更を検出したフレームで保存要求を出す。
+	// デバッガの停止で終了処理が省略されても、直前の配置が残るようにする。
+	ImGui::GetIO().IniSavingRate = 0.0f;
+	ImGui::LoadIniSettingsFromDisk("imgui_layout.ini");
 	ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\consola.ttf", 14.0f, nullptr, glyphRangesJapanese);
 	ImGui_ImplWin32_Init(hwnd);
 	ImGui_ImplDX11_Init(device.Get(), immediate_context.Get());
@@ -123,20 +136,32 @@ int framework::run()
 			const float elapsed_seconds = std::chrono::duration<float>(
 				std::chrono::steady_clock::now() - frame_start).count();
 			const float target_seconds = 1.0f / target_fps;
-			if (elapsed_seconds < target_seconds)
+			while (std::chrono::duration<float>(std::chrono::steady_clock::now() - frame_start).count() < target_seconds)
 			{
-				// Sleep() はミリ秒単位で待機するため、秒単位の差をミリ秒に変換して切り上げる
-				const DWORD sleep_milliseconds = static_cast<DWORD>(std::ceil((target_seconds - elapsed_seconds) * 1000.0f));
-				Sleep(sleep_milliseconds);
+				const float remaining_seconds = target_seconds - std::chrono::duration<float>(
+					std::chrono::steady_clock::now() - frame_start).count();
+				if (remaining_seconds > 0.002f)
+				{
+					// 最後の約1msはSleepせず、タイマーの誤差で目標を大きく超えないようにする。
+					Sleep(static_cast<DWORD>((remaining_seconds - 0.001f) * 1000.0f));
+				}
+				else
+				{
+					SwitchToThread();
+				}
 			}
 		}
 	}
 #ifdef USE_IMGUI
+	// 終了直前に必ず保存する。折り畳み状態、位置、サイズが次回起動時に復元される。
+	ImGui::SaveIniSettingsToDisk("imgui_layout.ini");
 	ImGui_ImplDX11_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
 #endif
-	return uninitialize() ? static_cast<int>(msg.wParam) : 0;
+	const int exit_code = uninitialize() ? static_cast<int>(msg.wParam) : 0;
+	timeEndPeriod(1);
+	return exit_code;
 }
 
 void framework::update(float elapsed_time)
@@ -168,6 +193,11 @@ void framework::render(float elapsed_time)
 #ifdef USE_IMGUI
 	ImGui::Render();
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+	if (ImGui::GetIO().WantSaveIniSettings)
+	{
+		ImGui::SaveIniSettingsToDisk("imgui_layout.ini");
+		ImGui::GetIO().WantSaveIniSettings = false;
+	}
 #endif
 	swap_chain->Present(0, 0);
 }
@@ -184,8 +214,8 @@ void framework::change_scene(SceneType new_scene_type)
 {
 	if (current_scene) current_scene->uninitialize();
 	current_scene.reset();
-	if (new_scene_type == SceneType::RACING)
-		current_scene = std::make_unique<RacingGameScene>();
+	if (new_scene_type == SceneType::PACMAN)
+		current_scene = std::make_unique<PacmanGameScene>();
 	if (current_scene && current_scene->initialize(device.Get()))
 		requested_scene_type = new_scene_type;
 	else

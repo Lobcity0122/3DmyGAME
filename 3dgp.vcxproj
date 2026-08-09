@@ -171,6 +171,7 @@
       <PreprocessorDefinitions>USE_IMGUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>.\DirectXTK-main\Inc;%(AdditionalIncludeDirectories);C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.1\include</AdditionalIncludeDirectories>
+	  <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -199,8 +200,8 @@
     <ClCompile Include="imgui\imgui_widgets.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="framework.cpp" />
-    <ClCompile Include="Player.cpp" />
-    <ClCompile Include="RacingGameScene.cpp" />
+    <ClCompile Include="PacmanPlayer.cpp" />
+    <ClCompile Include="PacmanGameScene.cpp" />
     <ClCompile Include="shader.cpp" />
     <ClCompile Include="skinned_mesh.cpp" />
     <ClCompile Include="sprite.cpp" />
@@ -223,8 +224,8 @@
     <ClInclude Include="imgui\imstb_textedit.h" />
     <ClInclude Include="imgui\imstb_truetype.h" />
     <ClInclude Include="misc.h" />
-    <ClInclude Include="Player.h" />
-    <ClInclude Include="RacingGameScene.h" />
+    <ClInclude Include="PacmanPlayer.h" />
+    <ClInclude Include="PacmanGameScene.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="shader.h" />
     <ClInclude Include="skinned_mesh.h" />

@@ -38,8 +38,6 @@ private:
 	float rotationFollowSpeed = 6.0f;
 	float focusFollowSpeed = 8.0f;
 
-	float shakeTimer = 0.0f;
-
 	bool editor_camera_active = false;
 	DirectX::XMFLOAT3 editor_position{};
 	float editor_yaw = 0.0f;

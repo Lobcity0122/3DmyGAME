@@ -1,10 +1,10 @@
-ï»¿#include "Collision.h"
+#include "Collision.h"
 #include <DirectXCollision.h>
 #include <cfloat>
 
 namespace Collision
 {
-	// ä¸‰è§’å½¢ã«å¯¾ã™ã‚‹ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆåˆ¤å®šé–¢æ•°
+	// OŠpŒ`‚É‘Î‚·‚éƒŒƒCƒLƒƒƒXƒg”»’èŠÖ”
     bool RayCastTriangle(
         const DirectX::XMFLOAT3& start,
         const DirectX::XMFLOAT3& end,
@@ -28,17 +28,17 @@ namespace Collision
         XMVECTOR C = XMLoadFloat3(&vertexC);
 
         float hitDist = 0.0f;
-        // DirectXCollision ã®äº¤å·®åˆ¤å®š
+        // DirectXCollision ‚ÌŒğ·”»’è
         if (TriangleTests::Intersects(Start, Direction, A, B, C, hitDist))
         {
-            // ç§»å‹•ãƒ¬ã‚¤ã®ç¯„å›²å†…ï¼ˆdistanceä»¥å†…ï¼‰ã§è¡çªã—ã¦ã„ã‚‹ã‹
+            // ˆÚ“®ƒŒƒC‚Ì”ÍˆÍ“àidistanceˆÈ“àj‚ÅÕ“Ë‚µ‚Ä‚¢‚é‚©
             if (hitDist <= distance)
             {
-                // è¡çªä½ç½®ã®ç®—å‡º
+                // Õ“ËˆÊ’u‚ÌZo
                 XMVECTOR HitPos = XMVectorAdd(Start, XMVectorScale(Direction, hitDist));
                 XMStoreFloat3(&hitPosition, HitPos);
 
-                // ä¸‰è§’å½¢ã®æ³•ç·šãƒ™ã‚¯ãƒˆãƒ«ã®ç®—å‡º
+                // OŠpŒ`‚Ì–@üƒxƒNƒgƒ‹‚ÌZo
                 XMVECTOR AB = XMVectorSubtract(B, A);
                 XMVECTOR BC = XMVectorSubtract(C, B);
                 XMVECTOR N = XMVector3Normalize(XMVector3Cross(AB, BC));
@@ -50,8 +50,8 @@ namespace Collision
         return false;
     }
 
-	// skinned_mesh ã«å¯¾ã™ã‚‹ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆåˆ¤å®šé–¢æ•°
-    bool RayCastSkinnedMesh(
+	// skinned_mesh ‚É‘Î‚·‚éƒŒƒCƒLƒƒƒXƒg”»’èŠÖ”
+	bool RayCastSkinnedMesh(
         const DirectX::XMFLOAT3& start,
         const DirectX::XMFLOAT3& end,
         const DirectX::XMFLOAT4X4& worldMatrix,
@@ -66,23 +66,23 @@ namespace Collision
         DirectX::XMFLOAT3 tempHitPos, tempHitNormal;
         DirectX::XMVECTOR S = DirectX::XMLoadFloat3(&start);
 
-        // ãƒ¢ãƒ‡ãƒ«å…¨ä½“ã®ãƒ¯ãƒ¼ãƒ«ãƒ‰è¡Œåˆ—
+        // ƒ‚ƒfƒ‹‘S‘Ì‚Ìƒ[ƒ‹ƒhs—ñ
         DirectX::XMMATRIX W = DirectX::XMLoadFloat4x4(&worldMatrix);
 
-        // 1. skinned_mesh ãŒæŒã¤ã™ã¹ã¦ã®ãƒ¡ãƒƒã‚·ãƒ¥ï¼ˆãƒ‘ãƒ¼ãƒ„ï¼‰ã‚’ãƒ«ãƒ¼ãƒ—
+        // 1. skinned_mesh ‚ª‚Â‚·‚×‚Ä‚ÌƒƒbƒVƒ…iƒp[ƒcj‚ğƒ‹[ƒv
         for (const auto& mesh : model->GetMeshes())
         {
-            // 2. ãƒ¯ãƒ¼ãƒ«ãƒ‰è¡Œåˆ—ã®ã¿ã‚’ä½¿ç”¨ï¼ˆdefault_global_transformã‚’ç„¡è¦–ï¼‰
+            // 2. ƒ[ƒ‹ƒhs—ñ‚Ì‚İ‚ğg—pidefault_global_transform‚ğ–³‹j
             DirectX::XMMATRIX finalTransform = W;
 
-            // 3. ãƒ¡ãƒƒã‚·ãƒ¥å†…ã®ã™ã¹ã¦ã®ãƒãƒªã‚´ãƒ³ï¼ˆä¸‰è§’å½¢ï¼‰ã‚’ãƒ«ãƒ¼ãƒ—
+            // 3. ƒƒbƒVƒ…“à‚Ì‚·‚×‚Ä‚Ìƒ|ƒŠƒSƒ“iOŠpŒ`j‚ğƒ‹[ƒv
             for (size_t i = 0; i < mesh.cpu_indices.size(); i += 3)
             {
                 DirectX::XMVECTOR p0 = DirectX::XMLoadFloat3(&mesh.cpu_vertices[mesh.cpu_indices[i]].position);
                 DirectX::XMVECTOR p1 = DirectX::XMLoadFloat3(&mesh.cpu_vertices[mesh.cpu_indices[i + 1]].position);
                 DirectX::XMVECTOR p2 = DirectX::XMLoadFloat3(&mesh.cpu_vertices[mesh.cpu_indices[i + 2]].position);
 
-                // ãƒ¯ãƒ¼ãƒ«ãƒ‰ç©ºé–“ã®åº§æ¨™ã«å¤‰æ›
+                // ƒ[ƒ‹ƒh‹óŠÔ‚ÌÀ•W‚É•ÏŠ·
                 p0 = DirectX::XMVector3TransformCoord(p0, finalTransform);
                 p1 = DirectX::XMVector3TransformCoord(p1, finalTransform);
                 p2 = DirectX::XMVector3TransformCoord(p2, finalTransform);
@@ -92,15 +92,15 @@ namespace Collision
                 DirectX::XMStoreFloat3(&v1, p1);
                 DirectX::XMStoreFloat3(&v2, p2);
 
-                // ä¸‰è§’å½¢ã¨ã®ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆåˆ¤å®š
+                // OŠpŒ`‚Æ‚ÌƒŒƒCƒLƒƒƒXƒg”»’è
                 if (RayCastTriangle(start, end, v0, v1, v2, tempHitPos, tempHitNormal))
                 {
-                    // äº¤ç‚¹ã¾ã§ã®è·é›¢ã‚’æ¸¬ã‚Šã€ä¸€ç•ªè¿‘ã„ã‚‚ã®ã‚’è¨˜éŒ²
+                    // Œğ“_‚Ü‚Å‚Ì‹——£‚ğ‘ª‚èAˆê”Ô‹ß‚¢‚à‚Ì‚ğ‹L˜^
                     DirectX::XMVECTOR P = DirectX::XMLoadFloat3(&tempHitPos);
                     float dist = DirectX::XMVectorGetX(DirectX::XMVector3Length(DirectX::XMVectorSubtract(P, S)));
 
 
-					// ä¸€ç•ªè¿‘ã„äº¤ç‚¹ã‚’æ›´æ–°
+					// ˆê”Ô‹ß‚¢Œğ“_‚ğXV
                     if (dist < closestDistance)
                     {
                         closestDistance = dist;
@@ -111,6 +111,43 @@ namespace Collision
                 }
             }
         }
-        return isHit;
-    }
+		return isHit;
+	}
+
+	bool RayCastStaticMesh(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end,
+		const DirectX::XMFLOAT4X4& worldMatrix, const static_mesh* model,
+		DirectX::XMFLOAT3& hitPosition, DirectX::XMFLOAT3& hitNormal)
+	{
+		if (!model) return false;
+		const auto& vertices = model->get_cpu_vertices();
+		const auto& indices = model->get_cpu_indices();
+		const DirectX::XMMATRIX world = DirectX::XMLoadFloat4x4(&worldMatrix);
+		const DirectX::XMVECTOR ray_start = DirectX::XMLoadFloat3(&start);
+		bool hit = false;
+		float closest_distance = FLT_MAX;
+
+		for (size_t i = 0; i + 2 < indices.size(); i += 3)
+		{
+			DirectX::XMVECTOR p0 = DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&vertices[indices[i]].position), world);
+			DirectX::XMVECTOR p1 = DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&vertices[indices[i + 1]].position), world);
+			DirectX::XMVECTOR p2 = DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&vertices[indices[i + 2]].position), world);
+			DirectX::XMFLOAT3 v0{}, v1{}, v2{}, temporary_position{}, temporary_normal{};
+			DirectX::XMStoreFloat3(&v0, p0);
+			DirectX::XMStoreFloat3(&v1, p1);
+			DirectX::XMStoreFloat3(&v2, p2);
+			if (RayCastTriangle(start, end, v0, v1, v2, temporary_position, temporary_normal))
+			{
+				const float distance = DirectX::XMVectorGetX(DirectX::XMVector3Length(
+					DirectX::XMVectorSubtract(DirectX::XMLoadFloat3(&temporary_position), ray_start)));
+				if (distance < closest_distance)
+				{
+					closest_distance = distance;
+					hitPosition = temporary_position;
+					hitNormal = temporary_normal;
+					hit = true;
+				}
+			}
+		}
+		return hit;
+	}
 }

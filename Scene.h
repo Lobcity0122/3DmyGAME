@@ -10,7 +10,7 @@ using namespace Microsoft::WRL;
 enum class SceneType
 {
 	MENU,
-	RACING,
+	PACMAN,
 	ONLYUP
 };
 
