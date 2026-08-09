@@ -103,10 +103,14 @@ private:
 	DirectX::XMFLOAT4X4 stage_world{};
 	DirectX::XMFLOAT4X4 background_world{};
 	float total_time = 0.0f;
+	// ImGuiで選んだ解像度は、次フレームの開始時にGPUテクスチャへ反映する。
+	UINT shadow_map_size = 2048;
+	UINT requested_shadow_map_size = 2048;
 
 	// 描画関数は毎フレーム同じ順序でこれらを呼び出す。
 	void update_scene_constants(ID3D11DeviceContext* immediate_context);
 	void render_shadow_map(ID3D11DeviceContext* immediate_context);
+	bool create_shadow_map(ID3D11Device* device, UINT size);
 	DirectX::XMMATRIX calculate_light_view_projection() const;
 	void configure_object_transforms();
 	void update_object_world_matrices();

@@ -13,6 +13,10 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	player->initialize();
 	camera_controller = std::make_unique<CameraController>();
 	player_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
+	// 描画モデルの実寸から、自機AABBのローカル範囲を取得する。
+	XMFLOAT3 player_model_min{}, player_model_max{};
+	player_mesh->get_bounding_box(player_model_min, player_model_max);
+	player->set_collision_model_bounds(player_model_min, player_model_max);
 	stage_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage.obj");
 	background_mesh = std::make_unique<static_mesh>(device, L".\\resources\\skybox_side_chicken_gun\\haikei.obj");
 
@@ -29,28 +33,7 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	if (FAILED(device->CreateBuffer(&buffer_desc, nullptr, scene_constant_buffer.GetAddressOf()))) return false;
 
 	// 方向ライトの影を保存する深度テクスチャ。深度ビューとシェーダー読み込みビューを同じテクスチャから作る。
-	D3D11_TEXTURE2D_DESC shadow_texture_desc{};
-	shadow_texture_desc.Width = 1024;
-	shadow_texture_desc.Height = 1024;
-	shadow_texture_desc.MipLevels = 1;
-	shadow_texture_desc.ArraySize = 1;
-	shadow_texture_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-	shadow_texture_desc.SampleDesc.Count = 1;
-	shadow_texture_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
-	if (FAILED(device->CreateTexture2D(&shadow_texture_desc, nullptr, shadow_depth_texture.GetAddressOf()))) return false;
-
-	D3D11_DEPTH_STENCIL_VIEW_DESC shadow_dsv_desc{};
-	shadow_dsv_desc.Format = DXGI_FORMAT_D32_FLOAT;
-	shadow_dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-	if (FAILED(device->CreateDepthStencilView(shadow_depth_texture.Get(), &shadow_dsv_desc,
-		shadow_depth_stencil_view.GetAddressOf()))) return false;
-
-	D3D11_SHADER_RESOURCE_VIEW_DESC shadow_srv_desc{};
-	shadow_srv_desc.Format = DXGI_FORMAT_R32_FLOAT;
-	shadow_srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	shadow_srv_desc.Texture2D.MipLevels = 1;
-	if (FAILED(device->CreateShaderResourceView(shadow_depth_texture.Get(), &shadow_srv_desc,
-		shadow_shader_resource_view.GetAddressOf()))) return false;
+	if (!create_shadow_map(device, shadow_map_size)) return false;
 
 	D3D11_SAMPLER_DESC shadow_sampler_desc{};
 	shadow_sampler_desc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
@@ -124,7 +107,7 @@ void PacmanGameScene::configure_object_transforms()
 	stage_transform = {
 		{ 0.0f, 0.0f, 0.0f },  // position
 		{ 0.0f, 0.0f, 0.0f },  // rotation_degrees
-		{ 1.0f, 1.0f, 1.0f }   // scale
+		{ 2.5f, 2.5f, 2.5f }   // scale
 	};
 
 	// 背景カプセルは原点を中心に大きく配置。ステージ全体を内部に収めるためのスケール。
@@ -132,16 +115,16 @@ void PacmanGameScene::configure_object_transforms()
 		// Blenderのグリッド中心とゲームのワールド原点を一致させる。
 		{ 0.0f, 0.0f, 0.0f },
 		{ 0.0f, 0.0f, 0.0f },
-		{ 50.0f, 50.0f, 50.0f }
+		{ 100.0f, 100.0f, 100.0f }
 	};
 
 	// 車は Player が Transform を保持するため、Player の setter で設定する。
 	// X=4.013 は左右壁の実測中点。Z=-4.0 の開始通路中央に置く。
-	player->set_position({ 4.013f, 0.5f, -4.0f });
+	player->set_position({ 10.0f, 1.3f, -13.0f });
 	player->set_angle({ XMConvertToRadians(0.0f), XMConvertToRadians(0.0f), XMConvertToRadians(0.0f) });
 	// Cubeの実寸は一辺2なので、0.3倍で一辺0.6。
 	// 開始地点の通路幅（約0.66?0.70）へ、ほぼ隙間なく収まる大きさにする。
-	player->set_scale({ 0.3f, 0.3f, 0.3f });
+	player->set_scale({ 0.6f, 0.6f, 0.6f });
 }
 
 void PacmanGameScene::update_object_world_matrices()
@@ -166,11 +149,49 @@ void PacmanGameScene::update_object_world_matrices()
 
 void PacmanGameScene::render(ID3D11DeviceContext* immediate_context, float)
 {
+	if (requested_shadow_map_size != shadow_map_size)
+	{
+		Microsoft::WRL::ComPtr<ID3D11Device> device;
+		immediate_context->GetDevice(device.GetAddressOf());
+		if (create_shadow_map(device.Get(), requested_shadow_map_size))
+			shadow_map_size = requested_shadow_map_size;
+		else
+			requested_shadow_map_size = shadow_map_size;
+	}
 	// 固定された描画パイプライン順序: 共有カメラ/ライトデータ設定 -> 3Dモデル描画 -> UIコマンド発行
 	render_shadow_map(immediate_context);
 	update_scene_constants(immediate_context);
 	draw_models(immediate_context);
 	draw_hud();
+}
+
+bool PacmanGameScene::create_shadow_map(ID3D11Device* device, UINT size)
+{
+	// 一式を生成できてから差し替える。失敗しても現在使用中の影は残る。
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> new_texture;
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> new_dsv;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> new_srv;
+	D3D11_TEXTURE2D_DESC texture_desc{};
+	texture_desc.Width = texture_desc.Height = size;
+	texture_desc.MipLevels = 1;
+	texture_desc.ArraySize = 1;
+	texture_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+	texture_desc.SampleDesc.Count = 1;
+	texture_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+	if (FAILED(device->CreateTexture2D(&texture_desc, nullptr, new_texture.GetAddressOf()))) return false;
+	D3D11_DEPTH_STENCIL_VIEW_DESC dsv_desc{};
+	dsv_desc.Format = DXGI_FORMAT_D32_FLOAT;
+	dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	if (FAILED(device->CreateDepthStencilView(new_texture.Get(), &dsv_desc, new_dsv.GetAddressOf()))) return false;
+	D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc{};
+	srv_desc.Format = DXGI_FORMAT_R32_FLOAT;
+	srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srv_desc.Texture2D.MipLevels = 1;
+	if (FAILED(device->CreateShaderResourceView(new_texture.Get(), &srv_desc, new_srv.GetAddressOf()))) return false;
+	shadow_depth_texture = new_texture;
+	shadow_depth_stencil_view = new_dsv;
+	shadow_shader_resource_view = new_srv;
+	return true;
 }
 
 XMMATRIX PacmanGameScene::calculate_light_view_projection() const
@@ -199,8 +220,8 @@ void PacmanGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
 	immediate_context->RSGetState(previous_rasterizer.GetAddressOf());
 
 	D3D11_VIEWPORT shadow_viewport{};
-	shadow_viewport.Width = 1024.0f;
-	shadow_viewport.Height = 1024.0f;
+	shadow_viewport.Width = static_cast<float>(shadow_map_size);
+	shadow_viewport.Height = static_cast<float>(shadow_map_size);
 	shadow_viewport.MinDepth = 0.0f;
 	shadow_viewport.MaxDepth = 1.0f;
 	immediate_context->OMSetRenderTargets(0, nullptr, shadow_depth_stencil_view.Get());
@@ -349,6 +370,14 @@ void PacmanGameScene::draw_hud()
 	ImGui::Begin("Lighting / Texture Debug");
 	ImGui::Checkbox("Use point light", &light_settings.use_point_light);
 	ImGui::Checkbox("Enable directional shadows", &light_settings.use_shadows);
+	const char* shadow_size_labels[] = { "1024 x 1024", "2048 x 2048", "4096 x 4096" };
+	int shadow_size_index = shadow_map_size == 1024 ? 0 : shadow_map_size == 4096 ? 2 : 1;
+	if (ImGui::Combo("Shadow texture / viewport", &shadow_size_index, shadow_size_labels, IM_ARRAYSIZE(shadow_size_labels)))
+	{
+		const UINT shadow_sizes[] = { 1024, 2048, 4096 };
+		requested_shadow_map_size = shadow_sizes[shadow_size_index];
+	}
+	ImGui::Text("Active shadow map: %u x %u", shadow_map_size, shadow_map_size);
 	ImGui::Checkbox("Use PBR lighting", &light_settings.use_pbr_lighting);
 	if (light_settings.use_point_light)
 	{

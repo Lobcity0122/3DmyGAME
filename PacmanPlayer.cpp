@@ -2,6 +2,7 @@
 #include "PacmanPlayer.h"
 #include "Collision.h"
 #include <windows.h>
+#include <algorithm>
 #include <cmath>
 
 using namespace DirectX;
@@ -13,7 +14,29 @@ void PacmanPlayer::initialize()
 	move_direction = { 0.0f, 1.0f };
 	requested_direction = move_direction;
 	hover_time = 0.0f;
+	rebuild_collision_aabb();
 	update_transform();
+}
+
+void PacmanPlayer::set_scale(const XMFLOAT3& value)
+{
+	scale = value;
+	rebuild_collision_aabb();
+}
+
+void PacmanPlayer::set_collision_model_bounds(const XMFLOAT3& minimum, const XMFLOAT3& maximum)
+{
+	collision_model_min = minimum;
+	collision_model_max = maximum;
+	rebuild_collision_aabb();
+}
+
+void PacmanPlayer::rebuild_collision_aabb()
+{
+	// 描画モデルのローカル最大範囲を、現在のスケールでワールド半サイズへ変換する。
+	const float half_x = (std::max)(std::fabs(collision_model_min.x), std::fabs(collision_model_max.x)) * std::fabs(scale.x);
+	const float half_z = (std::max)(std::fabs(collision_model_min.z), std::fabs(collision_model_max.z)) * std::fabs(scale.z);
+	collision_half_extent = { half_x, half_z };
 }
 
 void PacmanPlayer::read_direction_input()
@@ -50,23 +73,48 @@ void PacmanPlayer::update(float elapsed_time, const static_mesh* collision_mesh,
 	hover_time += elapsed_time;
 	read_direction_input();
 
-	// 当たり判定を持たない基礎状態では、入力された方向へすぐに切り替えて前進する。
+	// 反転はいつでも即時に行える。左右旋回は交差点まで予約しておく。
 	if (requested_direction.x != move_direction.x || requested_direction.y != move_direction.y)
 	{
-		move_direction = requested_direction;
+		const float direction_dot = move_direction.x * requested_direction.x +
+			move_direction.y * requested_direction.y;
+		if (direction_dot < -0.5f)
+		{
+			move_direction = requested_direction;
+		}
+		else if (collision_mesh != nullptr)
+		{
+			XMFLOAT3 snapped_position{};
+			if (Collision::FindTurnSnapPosition2D(position, requested_direction, collision_half_extent,
+				collision_world, collision_mesh, turn_snap_distance, snapped_position))
+			{
+				// 交差点の中心線へだけ補正してから旋回する。早押しでも壁には入らない。
+				position = snapped_position;
+				move_direction = requested_direction;
+			}
+		}
+		else
+		{
+			move_direction = requested_direction;
+		}
 	}
 	XMFLOAT3 next_position = position;
 	next_position.x += move_direction.x * move_speed * elapsed_time;
 	next_position.z += move_direction.y * move_speed * elapsed_time;
 
-	// まずは自機中心から前方へ1本だけレイを飛ばす、最小構成の判定。
-	// 壁専用モデル以外は判定しないため、見た目の床・装飾には引っ掛からない。
-	XMFLOAT3 hit_position{}, hit_normal{};
-	if (collision_mesh == nullptr || !Collision::RayCastStaticMesh(position, next_position,
-		collision_world, collision_mesh, hit_position, hit_normal))
+	// 自機AABBを壁AABBへスイープする。壁側を自機の半サイズぶん膨らませて
+	// 中心の移動線分と交差させるため、キューブ全体が壁に入らない。
+	const float movement_x = next_position.x - position.x;
+	const float movement_z = next_position.z - position.z;
+	float allowed_fraction = 1.0f;
+	XMFLOAT3 hit_normal{};
+	if (collision_mesh != nullptr)
 	{
-		position = next_position;
+		Collision::SweepAABB2D(position, next_position, collision_half_extent,
+			collision_world, collision_mesh, allowed_fraction, hit_normal);
 	}
+	position.x += movement_x * allowed_fraction;
+	position.z += movement_z * allowed_fraction;
 	angle.y = std::atan2(move_direction.x, move_direction.y);
 	update_transform();
 }

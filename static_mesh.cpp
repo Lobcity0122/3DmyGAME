@@ -26,6 +26,17 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
     // objファイルパーサー部でテクスチャ座標とマテリアルファイル名を取得する
     std::vector<XMFLOAT2> texcoords;
     std::vector<wstring> mtl_filenames;
+	XMFLOAT3 current_object_min{ FLT_MAX, FLT_MAX, FLT_MAX };
+	XMFLOAT3 current_object_max{ -FLT_MAX, -FLT_MAX, -FLT_MAX };
+	bool current_object_has_vertices = false;
+	const auto finish_current_object = [this, &current_object_min, &current_object_max, &current_object_has_vertices]()
+	{
+		if (!current_object_has_vertices) return;
+		object_bounding_boxes.push_back({ current_object_min, current_object_max });
+		current_object_min = { FLT_MAX, FLT_MAX, FLT_MAX };
+		current_object_max = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+		current_object_has_vertices = false;
+	};
 
     std::wifstream fin(obj_filename);
     _ASSERT_EXPR(fin, L"'OBJ file not found.");
@@ -49,8 +60,22 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
             bounding_box_max.x = (std::max)(bounding_box_max.x, x);
             bounding_box_max.y = (std::max)(bounding_box_max.y, y);
             bounding_box_max.z = (std::max)(bounding_box_max.z, z);
+
+			current_object_min.x = (std::min)(current_object_min.x, x);
+			current_object_min.y = (std::min)(current_object_min.y, y);
+			current_object_min.z = (std::min)(current_object_min.z, z);
+			current_object_max.x = (std::max)(current_object_max.x, x);
+			current_object_max.y = (std::max)(current_object_max.y, y);
+			current_object_max.z = (std::max)(current_object_max.z, z);
+			current_object_has_vertices = true;
             fin.ignore(1024, L'\n');
         }
+        else if (0 == wcscmp(command, L"o") || 0 == wcscmp(command, L"g"))
+        {
+			// 次のオブジェクトへ切り替わる前に、直前の頂点範囲を保存する。
+			finish_current_object();
+			fin.ignore(1024, L'\n');
+		}
         else if (0 == wcscmp(command, L"vn"))
         {
             // 法線の読み込み
@@ -122,6 +147,7 @@ static_mesh::static_mesh(ID3D11Device * device, const wchar_t* obj_filename)
             fin.ignore(1024, L'\n');
         }
     }
+    finish_current_object();
     if (subsets.empty() && !indices.empty())
     {
         // MTL/usemtl を持たないOBJでも、描画・衝突用データを最後まで生成する。

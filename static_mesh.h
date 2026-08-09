@@ -31,9 +31,16 @@ public:
 		uint32_t index_start{ 0 }; // start position of index buffer インデックスバッファの開始位置
 		uint32_t index_count{ 0 }; // number of vertices (indices)  インデックスの数
 	};
+	// OBJ内の o/g ごとの最大範囲。衝突専用OBJでは、壁キューブごとのAABBとして使う。
+	struct bounding_box
+	{
+		DirectX::XMFLOAT3 minimum;
+		DirectX::XMFLOAT3 maximum;
+	};
 	std::vector<subset> subsets;
 	const std::vector<vertex>& get_cpu_vertices() const { return cpu_vertices; }
 	const std::vector<uint32_t>& get_cpu_indices() const { return cpu_indices; }
+	const std::vector<bounding_box>& get_object_bounding_boxes() const { return object_bounding_boxes; }
 
 private:
 	ComPtr<ID3D11Buffer> vertex_buffer;
@@ -60,6 +67,7 @@ private:
 	std::vector<material> materials;
 	std::vector<vertex> cpu_vertices;
 	std::vector<uint32_t> cpu_indices;
+	std::vector<bounding_box> object_bounding_boxes;
 
 	// バウンディングボックス用のメンバ変数の追加
 	DirectX::XMFLOAT3 bounding_box_min{ FLT_MAX, FLT_MAX, FLT_MAX };    // バウンディングボックスの最小座標
