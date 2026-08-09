@@ -119,6 +119,59 @@ void PacmanPlayer::update(float elapsed_time, const static_mesh* collision_mesh,
 	update_transform();
 }
 
+void PacmanPlayer::update_enemy(float elapsed_time, const static_mesh* collision_mesh, const XMFLOAT4X4& collision_world)
+{
+	hover_time += elapsed_time;
+	const float step = move_speed * elapsed_time;
+	XMFLOAT3 next_position = position;
+	next_position.x += move_direction.x * step;
+	next_position.z += move_direction.y * step;
+	float allowed_fraction = 1.0f;
+	XMFLOAT3 hit_normal{};
+	const bool hit_wall = collision_mesh != nullptr && Collision::SweepAABB2D(
+		position, next_position, collision_half_extent, collision_world, collision_mesh,
+		allowed_fraction, hit_normal);
+
+	position.x += (next_position.x - position.x) * allowed_fraction;
+	position.z += (next_position.z - position.z) * allowed_fraction;
+	if (hit_wall)
+	{
+		// xorshift: <random>に依存せず、敵ごとに異なる順番で4方向を試す。
+		ai_random_state ^= ai_random_state << 13;
+		ai_random_state ^= ai_random_state >> 17;
+		ai_random_state ^= ai_random_state << 5;
+		const XMFLOAT2 directions[] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+		const unsigned int first = ai_random_state % 4;
+		for (unsigned int offset = 0; offset < 4; ++offset)
+		{
+			const XMFLOAT2 candidate_direction = directions[(first + offset) % 4];
+			XMFLOAT3 candidate_position = position;
+			// 直角方向へ曲がる場合だけ、プレイヤーと同じ交差点中心補正を利用する。
+			const float dot = move_direction.x * candidate_direction.x + move_direction.y * candidate_direction.y;
+			if (std::fabs(dot) < 0.5f && collision_mesh != nullptr)
+			{
+				if (!Collision::FindTurnSnapPosition2D(position, candidate_direction, collision_half_extent,
+					collision_world, collision_mesh, turn_snap_distance, candidate_position))
+					continue;
+			}
+			XMFLOAT3 test_end = candidate_position;
+			test_end.x += candidate_direction.x * step;
+			test_end.z += candidate_direction.y * step;
+			float test_fraction = 1.0f;
+			XMFLOAT3 test_normal{};
+			if (collision_mesh == nullptr || !Collision::SweepAABB2D(candidate_position, test_end,
+				collision_half_extent, collision_world, collision_mesh, test_fraction, test_normal))
+			{
+				position = candidate_position;
+				move_direction = candidate_direction;
+				break;
+			}
+		}
+	}
+	angle.y = std::atan2(move_direction.x, move_direction.y);
+	update_transform();
+}
+
 void PacmanPlayer::update_transform()
 {
 	const float hover_offset = std::sinf(hover_time * hover_frequency * XM_2PI) * hover_amplitude;

@@ -1,5 +1,7 @@
 #include "PacmanGameScene.h"
 #include <cmath>
+#include <algorithm>
+#include <windows.h>
 #ifdef USE_IMGUI
 #include "imgui/imgui.h"
 #endif
@@ -8,15 +10,23 @@ using namespace DirectX;
 
 bool PacmanGameScene::initialize(ID3D11Device* device)
 {
+	game_state = GameState::Playing;
+	lives = 3;
+	state_timer = 0.0f;
+	player_visible = true;
+	exit_requested = false;
 	// 1回のみ生成: CPUオブジェクトを生成し、そのコンストラクタ内でGPUリソースを作成
 	player = std::make_unique<PacmanPlayer>();
 	player->initialize();
+	enemy = std::make_unique<PacmanPlayer>();
+	enemy->initialize();
 	camera_controller = std::make_unique<CameraController>();
 	player_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
 	// 描画モデルの実寸から、自機AABBのローカル範囲を取得する。
 	XMFLOAT3 player_model_min{}, player_model_max{};
 	player_mesh->get_bounding_box(player_model_min, player_model_max);
 	player->set_collision_model_bounds(player_model_min, player_model_max);
+	enemy->set_collision_model_bounds(player_model_min, player_model_max);
 	stage_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage.obj");
 	background_mesh = std::make_unique<static_mesh>(device, L".\\resources\\skybox_side_chicken_gun\\haikei.obj");
 
@@ -91,7 +101,32 @@ void PacmanGameScene::update(float elapsed_time)
 		elapsed_time, GetActiveWindow(), editor_debug.enable_editor_camera, mouse_input_allowed);
 	if (!is_editing_camera)
 	{
-		player->update(elapsed_time, collision_mesh.get(), stage_world);
+		state_timer += elapsed_time;
+		if (game_state == GameState::Playing)
+		{
+			player->update(elapsed_time, collision_mesh.get(), stage_world);
+			enemy->update_enemy(elapsed_time, collision_mesh.get(), stage_world);
+			if (is_player_touching_enemy()) begin_respawn_or_game_over();
+		}
+		else if (game_state == GameState::Respawning)
+		{
+			// 1.5秒だけ点滅する。描画だけを消すので、座標や壁判定は不安定にならない。
+			player_visible = std::fmod(state_timer, 0.18f) < 0.09f;
+			if (state_timer >= 1.5f)
+			{
+				player->set_position(player_spawn_position);
+				enemy->set_position(enemy_spawn_position);
+				game_state = GameState::Playing;
+				state_timer = 0.0f;
+				player_visible = true;
+			}
+		}
+		else if (game_state == GameState::GameOverFade && state_timer >= 2.5f && !exit_requested)
+		{
+			// WM_CLOSEは通常の終了経路を通すため、GPUリソースもuninitializeで解放される。
+			exit_requested = true;
+			PostMessage(GetActiveWindow(), WM_CLOSE, 0, 0);
+		}
 		camera_controller->update(elapsed_time, player->get_position(), player->get_angle().y,
 			player->get_move_speed(), false, 0.0f);
 	}
@@ -120,11 +155,18 @@ void PacmanGameScene::configure_object_transforms()
 
 	// 車は Player が Transform を保持するため、Player の setter で設定する。
 	// X=4.013 は左右壁の実測中点。Z=-4.0 の開始通路中央に置く。
-	player->set_position({ 10.0f, 1.3f, -13.0f });
+	player_spawn_position = { 10.0f, 1.3f, -13.0f };
+	player->set_position(player_spawn_position);
 	player->set_angle({ XMConvertToRadians(0.0f), XMConvertToRadians(0.0f), XMConvertToRadians(0.0f) });
 	// Cubeの実寸は一辺2なので、0.3倍で一辺0.6。
 	// 開始地点の通路幅（約0.66?0.70）へ、ほぼ隙間なく収まる大きさにする。
 	player->set_scale({ 0.6f, 0.6f, 0.6f });
+
+	// 敵も同じcube.objを使う。色だけ描画時に赤へ指定する。
+	enemy_spawn_position = { -10.0f, 1.3f, -13.0f };
+	enemy->set_position(enemy_spawn_position);
+	enemy->set_angle({ 0.0f, 0.0f, 0.0f });
+	enemy->set_scale({ 0.6f, 0.6f, 0.6f });
 }
 
 void PacmanGameScene::update_object_world_matrices()
@@ -236,7 +278,9 @@ void PacmanGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
 
 	// 背景は影を落とさない。ステージと車だけを深度として記録する。
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1), nullptr, true);
-	player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
+	if (player_visible)
+		player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
+	player_mesh->render(immediate_context, enemy->get_transform(), XMFLOAT4(1, 0.08f, 0.08f, 1), nullptr, true);
 
 	immediate_context->OMSetRenderTargets(1, previous_rtv.GetAddressOf(), previous_dsv.Get());
 	immediate_context->RSSetViewports(1, &previous_viewport);
@@ -291,7 +335,9 @@ void PacmanGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 	// 各モデルが自身のシェーダー、ジオメトリ、テクスチャ、および b0（オブジェクト固有の定数バッファ）をバインドして描画
 	// Draw the course first, then draw the moving car on top of it using the depth buffer.
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1));
-	player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1));
+	if (player_visible)
+		player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1));
+	player_mesh->render(immediate_context, enemy->get_transform(), XMFLOAT4(1, 0.08f, 0.08f, 1));
 	if (editor_debug.show_collision_model)
 	{
 		Microsoft::WRL::ComPtr<ID3D11RasterizerState> previous_rasterizer;
@@ -358,6 +404,7 @@ void PacmanGameScene::draw_hud()
 	// HUDもほかのデバッグウィンドウと同様に、移動・サイズ変更・折り畳みを許可する。
 	ImGui::Begin("Pacman HUD");
 	ImGui::Text("MOVE SPEED: %.1f", player->get_move_speed());
+	ImGui::Text("LIVES: %d / 3", lives);
 	ImGui::Text("AUTO MOVE  A: left  D: right  S: reverse");
 	const int minutes = static_cast<int>(total_time) / 60;
 	const float seconds = std::fmod(total_time, 60.0f);
@@ -475,7 +522,45 @@ void PacmanGameScene::draw_hud()
 	}
 	ImGui::TextWrapped("Grid: XZ plane at world origin. Gizmo: X red, Y green, Z blue.");
 	ImGui::End();
+
+	if (game_state == GameState::GameOverFade)
+	{
+		const float alpha = (std::min)(state_timer / 2.5f, 1.0f);
+		ImDrawList* foreground = ImGui::GetOverlayDrawList();
+		const ImVec2 screen_size = ImGui::GetIO().DisplaySize;
+		foreground->AddRectFilled(ImVec2(0, 0), screen_size, IM_COL32(0, 0, 0, static_cast<int>(alpha * 255.0f)));
+		if (alpha > 0.35f)
+			foreground->AddText(ImVec2(screen_size.x * 0.5f - 42.0f, screen_size.y * 0.5f), IM_COL32(255, 80, 80, 255), "GAME OVER");
+	}
 #endif
+}
+
+bool PacmanGameScene::is_player_touching_enemy() const
+{
+	// cube.objは一辺2、現在のscale=0.6なので半サイズは約0.6。
+	// AABB同士をXZ平面で比較し、浮遊演出のY座標はゲーム判定に使わない。
+	const DirectX::XMFLOAT3& player_position = player->get_position();
+	const DirectX::XMFLOAT3& enemy_position = enemy->get_position();
+	const float player_half_size = (std::max)(player->get_scale().x, player->get_scale().z);
+	const float enemy_half_size = (std::max)(enemy->get_scale().x, enemy->get_scale().z);
+	const float limit = player_half_size + enemy_half_size;
+	return std::fabs(player_position.x - enemy_position.x) < limit &&
+		std::fabs(player_position.z - enemy_position.z) < limit;
+}
+
+void PacmanGameScene::begin_respawn_or_game_over()
+{
+	--lives;
+	state_timer = 0.0f;
+	player_visible = false;
+	if (lives > 0)
+	{
+		game_state = GameState::Respawning;
+	}
+	else
+	{
+		game_state = GameState::GameOverFade;
+	}
 }
 
 void PacmanGameScene::uninitialize()
@@ -495,6 +580,7 @@ void PacmanGameScene::uninitialize()
 	background_rasterizer_state.Reset();
 	collision_wireframe_rasterizer_state.Reset();
 	player.reset();
+	enemy.reset();
 	if (camera_controller) camera_controller->stop_editor_camera();
 	camera_controller.reset();
 }

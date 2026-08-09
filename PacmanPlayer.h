@@ -11,6 +11,8 @@ public:
 	void initialize();
 	// collision_mesh は描画しない壁専用OBJ。指定時だけ前方レイとの交差を調べる。
 	void update(float elapsed_time, const static_mesh* collision_mesh, const DirectX::XMFLOAT4X4& collision_world);
+	// 入力を使わない敵用の移動。壁に着いた時だけ進める方向をランダムに選ぶ。
+	void update_enemy(float elapsed_time, const static_mesh* collision_mesh, const DirectX::XMFLOAT4X4& collision_world);
 
 	const DirectX::XMFLOAT3& get_position() const { return position; }
 	void set_position(const DirectX::XMFLOAT3& value) { position = value; }
@@ -54,4 +56,5 @@ private:
 	bool previous_left_pressed = false;
 	bool previous_right_pressed = false;
 	bool previous_reverse_pressed = false;
+	unsigned int ai_random_state = 0x9E3779B9u;
 };

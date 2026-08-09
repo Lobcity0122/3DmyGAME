@@ -22,6 +22,7 @@ public:
 private:
 	// PacmanPlayerがグリッド移動を扱い、CameraControllerが追従ビューを作る。
 	std::unique_ptr<PacmanPlayer> player;
+	std::unique_ptr<PacmanPlayer> enemy;
 	std::unique_ptr<CameraController> camera_controller;
 
 	// 2つの独立したモデル読み込み用パス。ここに並べておくことで、違いや使い方が一目で比較できる。
@@ -103,6 +104,16 @@ private:
 	DirectX::XMFLOAT4X4 stage_world{};
 	DirectX::XMFLOAT4X4 background_world{};
 	float total_time = 0.0f;
+
+	// 敵接触後の処理を、通常プレイから分離して分かりやすく管理する。
+	enum class GameState { Playing, Respawning, GameOverFade };
+	GameState game_state = GameState::Playing;
+	int lives = 3;
+	float state_timer = 0.0f;
+	bool player_visible = true;
+	bool exit_requested = false;
+	DirectX::XMFLOAT3 player_spawn_position{};
+	DirectX::XMFLOAT3 enemy_spawn_position{};
 	// ImGuiで選んだ解像度は、次フレームの開始時にGPUテクスチャへ反映する。
 	UINT shadow_map_size = 2048;
 	UINT requested_shadow_map_size = 2048;
@@ -117,4 +128,6 @@ private:
 	void draw_models(ID3D11DeviceContext* immediate_context);
 	void draw_editor_helpers(ID3D11DeviceContext* immediate_context);
 	void draw_hud();
+	bool is_player_touching_enemy() const;
+	void begin_respawn_or_game_over();
 };
