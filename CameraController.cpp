@@ -67,6 +67,20 @@ void CameraController::update(float elapsedTime, const DirectX::XMFLOAT3& player
 	cameraUp = { std::sinf(currentRoll), std::cosf(currentRoll), 0.0f };
 }
 
+void CameraController::update_cinematic_camera(float elapsed_time, const DirectX::XMFLOAT3& eye, const DirectX::XMFLOAT3& focus)
+{
+	if (elapsed_time <= 0.0f) elapsed_time = 0.001f;
+	// 大きく視点が動くクリア演出なので、通常追従より少しゆっくり目に補間する。
+	currentEye.x = Damp(currentEye.x, eye.x, 3.0f, elapsed_time);
+	currentEye.y = Damp(currentEye.y, eye.y, 3.0f, elapsed_time);
+	currentEye.z = Damp(currentEye.z, eye.z, 3.0f, elapsed_time);
+	currentFocus.x = Damp(currentFocus.x, focus.x, 3.0f, elapsed_time);
+	currentFocus.y = Damp(currentFocus.y, focus.y, 3.0f, elapsed_time);
+	currentFocus.z = Damp(currentFocus.z, focus.z, 3.0f, elapsed_time);
+	currentFov = Damp(currentFov, 52.0f, 3.0f, elapsed_time);
+	cameraUp = { 0.0f, 1.0f, 0.0f };
+}
+
 bool CameraController::update_editor_camera(float elapsedTime, HWND hwnd, bool enabled, bool mouse_input_allowed)
 {
 	if (hwnd == nullptr)

@@ -9,6 +9,8 @@ public:
 	CameraController() = default;
 
 	void update(float elapsedTime, const DirectX::XMFLOAT3& playerPos, float playerAngleY, float playerSpeed, bool isDrifting, float driftDir);
+	// クリア演出用。プレイヤー追従ではなく、指定したステージ俯瞰カメラへ滑らかに移す。
+	void update_cinematic_camera(float elapsed_time, const DirectX::XMFLOAT3& eye, const DirectX::XMFLOAT3& focus);
 	// 右クリック中だけ使う、ステージ確認用の自由カメラ。
 	// 戻り値が true の間は、通常のプレイヤー追従カメラを更新しない。
 	bool update_editor_camera(float elapsedTime, HWND hwnd, bool enabled, bool mouse_input_allowed);

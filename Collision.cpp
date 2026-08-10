@@ -194,6 +194,39 @@ namespace Collision
 		return found;
 	}
 
+	bool IsAABBBlocked2D(const DirectX::XMFLOAT3& position,
+		const DirectX::XMFLOAT2& player_half_extent, const DirectX::XMFLOAT4X4& world_matrix,
+		const static_mesh* collision_mesh)
+	{
+		if (collision_mesh == nullptr) return false;
+		const DirectX::XMMATRIX world = DirectX::XMLoadFloat4x4(&world_matrix);
+		for (const static_mesh::bounding_box& local_box : collision_mesh->get_object_bounding_boxes())
+		{
+			float minimum_x = FLT_MAX, maximum_x = -FLT_MAX;
+			float minimum_z = FLT_MAX, maximum_z = -FLT_MAX;
+			for (int x = 0; x < 2; ++x)
+				for (int y = 0; y < 2; ++y)
+					for (int z = 0; z < 2; ++z)
+					{
+						const DirectX::XMFLOAT3 local_point{
+							x == 0 ? local_box.minimum.x : local_box.maximum.x,
+							y == 0 ? local_box.minimum.y : local_box.maximum.y,
+							z == 0 ? local_box.minimum.z : local_box.maximum.z };
+						DirectX::XMFLOAT3 world_point{};
+						DirectX::XMStoreFloat3(&world_point,
+							DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&local_point), world));
+						minimum_x = (std::min)(minimum_x, world_point.x);
+						maximum_x = (std::max)(maximum_x, world_point.x);
+						minimum_z = (std::min)(minimum_z, world_point.z);
+						maximum_z = (std::max)(maximum_z, world_point.z);
+					}
+			if (position.x > minimum_x - player_half_extent.x && position.x < maximum_x + player_half_extent.x &&
+				position.z > minimum_z - player_half_extent.y && position.z < maximum_z + player_half_extent.y)
+				return true;
+		}
+		return false;
+	}
+
 	// 三角形に対するレイキャスト判定関数
     bool RayCastTriangle(
         const DirectX::XMFLOAT3& start,

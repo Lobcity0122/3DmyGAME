@@ -19,6 +19,11 @@ namespace Collision
 		const DirectX::XMFLOAT4X4& world_matrix, const static_mesh* collision_mesh,
 		float maximum_snap_distance, DirectX::XMFLOAT3& snapped_position);
 
+	// 指定位置に自機AABBを置けるかを調べる。回路セル生成時の通路判定に使う。
+	bool IsAABBBlocked2D(const DirectX::XMFLOAT3& position,
+		const DirectX::XMFLOAT2& player_half_extent, const DirectX::XMFLOAT4X4& world_matrix,
+		const static_mesh* collision_mesh);
+
     // レイと単一の三角形の交差判定
     bool RayCastTriangle(
         const DirectX::XMFLOAT3& start,

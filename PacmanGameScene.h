@@ -7,6 +7,7 @@
 #include "skinned_mesh.h"
 #include "geometric_primitive.h"
 #include <memory>
+#include <vector>
 #include <wrl.h>
 
 // このクラスは3Dパックマンライクなゲーム状態だけを管理する。
@@ -29,6 +30,7 @@ private:
 	std::unique_ptr<static_mesh> player_mesh;       // OBJ（プレイヤー）
 	std::unique_ptr<static_mesh> stage_mesh;        // OBJ（静的メッシュ：コース）
 	std::unique_ptr<static_mesh> collision_mesh;    // 描画しない壁専用OBJ（当たり判定）
+	std::unique_ptr<static_mesh> circuit_mesh;      // 描画しない通路専用OBJ（回路復旧判定）
 	std::unique_ptr<static_mesh> background_mesh;  // OBJ（背景用の静的メッシュ）
 	std::unique_ptr<cube> debug_cube;               // グリッドと軸の線を描くための簡易プリミティブ
 
@@ -106,7 +108,7 @@ private:
 	float total_time = 0.0f;
 
 	// 敵接触後の処理を、通常プレイから分離して分かりやすく管理する。
-	enum class GameState { Playing, Respawning, GameOverFade };
+	enum class GameState { Playing, Respawning, GameOverFade, GameClearFade };
 	GameState game_state = GameState::Playing;
 	int lives = 3;
 	float state_timer = 0.0f;
@@ -114,6 +116,21 @@ private:
 	bool exit_requested = false;
 	DirectX::XMFLOAT3 player_spawn_position{};
 	DirectX::XMFLOAT3 enemy_spawn_position{};
+
+	// Make Trax型の「復旧済み回路」。敵ではなく自機が通過した区間だけを保持する。
+	struct CircuitSegment
+	{
+		DirectX::XMFLOAT3 start;
+		DirectX::XMFLOAT3 end;
+	};
+	std::vector<CircuitSegment> player_circuit_segments;
+	struct CircuitCell
+	{
+		DirectX::XMFLOAT3 minimum;
+		DirectX::XMFLOAT3 maximum;
+		bool recovered = false;
+	};
+	std::vector<CircuitCell> circuit_cells;
 	// ImGuiで選んだ解像度は、次フレームの開始時にGPUテクスチャへ反映する。
 	UINT shadow_map_size = 2048;
 	UINT requested_shadow_map_size = 2048;
@@ -128,6 +145,12 @@ private:
 	void draw_models(ID3D11DeviceContext* immediate_context);
 	void draw_editor_helpers(ID3D11DeviceContext* immediate_context);
 	void draw_hud();
+	void record_player_circuit(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end);
+	void draw_player_circuit(ID3D11DeviceContext* immediate_context);
+	void build_circuit_cells();
+	void recover_circuit_cells_at(const DirectX::XMFLOAT3& position);
+	int get_recovered_circuit_cell_count() const;
 	bool is_player_touching_enemy() const;
 	void begin_respawn_or_game_over();
+	void begin_game_clear();
 };
