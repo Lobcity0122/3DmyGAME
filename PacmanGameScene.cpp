@@ -404,7 +404,6 @@ void PacmanGameScene::record_player_circuit(const XMFLOAT3& start, const XMFLOAT
 			(std::max)(previous_length * new_length, 0.0001f);
 		if (connects && direction_dot > 0.999f)
 		{
-
 			previous.end = end;
 			return;
 		}
@@ -562,9 +561,11 @@ void PacmanGameScene::draw_hud()
 		float range = camera_controller->get_follow_range();
 		float height = camera_controller->get_follow_height();
 		float focus_height = camera_controller->get_follow_focus_height();
+		bool follow_rotation = camera_controller->get_follow_rotation();
 		if (ImGui::DragFloat("Camera distance", &range, 0.1f, 2.0f, 20.0f)) camera_controller->set_follow_range(range);
 		if (ImGui::DragFloat("Camera height", &height, 0.1f, 0.5f, 20.0f)) camera_controller->set_follow_height(height);
 		if (ImGui::DragFloat("Focus height", &focus_height, 0.05f, -5.0f, 10.0f)) camera_controller->set_follow_focus_height(focus_height);
+		if (ImGui::Checkbox("Follow player rotation", &follow_rotation)) camera_controller->set_follow_rotation(follow_rotation);
 	}
 	ImGui::End();
 

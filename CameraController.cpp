@@ -18,23 +18,24 @@ void CameraController::update(float elapsedTime, const DirectX::XMFLOAT3& player
 {
 	if (elapsedTime <= 0.0f) elapsedTime = 0.001f;
 
-	float speedRatio = (std::min)(playerSpeed / 30.0f, 1.0f);
-
-	// 回転の追従
-	float angleDiff = NormalizeAngleDiff(playerAngleY - currentCameraAngleY);
-	currentCameraAngleY += angleDiff * rotationFollowSpeed * elapsedTime;
+	// 標準では画面の方角を固定する。交差点で画面全体が回らず、迷路を把握しやすい。
+	float angleDiff = 0.0f;
+	if (follow_rotation)
+	{
+		angleDiff = NormalizeAngleDiff(playerAngleY - currentCameraAngleY);
+		currentCameraAngleY += angleDiff * rotationFollowSpeed * elapsedTime;
+	}
 
 	float frontX = std::sinf(currentCameraAngleY);
 	float frontZ = std::cosf(currentCameraAngleY);
 	float rightX = std::cosf(currentCameraAngleY);
 	float rightZ = -std::sinf(currentCameraAngleY);
 
-	// 速度連動 FOV
-	float targetFov = baseFov + (maxFov - baseFov) * speedRatio;
-	currentFov = Damp(currentFov, targetFov, 2.5f, elapsedTime);
+	// FOVは常に固定。速度による視野角の変化を起こさない。
+	currentFov = baseFov;
 
 	// カメラ目標位置と注視点
-	float dynamicRange = baseRange + speedRatio * 1.5f;
+	const float dynamicRange = baseRange;
 	float driftOffset = isDrifting ? 0.3f * driftDir : 0.0f;
 
 	DirectX::XMFLOAT3 targetEye;
@@ -55,16 +56,8 @@ void CameraController::update(float elapsedTime, const DirectX::XMFLOAT3& player
 	currentFocus.y = Damp(currentFocus.y, idealFocus.y, focusFollowSpeed, elapsedTime);
 	currentFocus.z = Damp(currentFocus.z, idealFocus.z, focusFollowSpeed, elapsedTime);
 
-	// ドリフト時の傾き（ロール）
-	float targetRoll = 0.0f;
-	if (playerSpeed > 5.0f)
-	{
-		targetRoll = -angleDiff * (isDrifting ? 0.1f : 0.05f);
-	}
-	static float currentRoll = 0.0f;
-	currentRoll = Lerp(currentRoll, targetRoll, 5.0f * elapsedTime);
-
-	cameraUp = { std::sinf(currentRoll), std::cosf(currentRoll), 0.0f };
+	// ロールは常に使わない。画面が傾かないことを優先する。
+	cameraUp = { 0.0f, 1.0f, 0.0f };
 }
 
 void CameraController::update_cinematic_camera(float elapsed_time, const DirectX::XMFLOAT3& eye, const DirectX::XMFLOAT3& focus)

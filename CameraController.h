@@ -26,6 +26,8 @@ public:
 	void set_follow_range(float value) { baseRange = value; }
 	void set_follow_height(float value) { baseHeight = value; }
 	void set_follow_focus_height(float value) { focusHeight = value; }
+	bool get_follow_rotation() const { return follow_rotation; }
+	void set_follow_rotation(bool value) { follow_rotation = value; }
 
 private:
 	DirectX::XMFLOAT3 currentEye = { 0, 3, -8 };
@@ -41,11 +43,12 @@ private:
 	float focusHeight = 0.5f;
 
 	float baseFov = 60.0f;
-	float maxFov = 85.0f;
 
 	float positionFollowSpeed = 15.0f;
 	float rotationFollowSpeed = 6.0f;
 	float focusFollowSpeed = 8.0f;
+	// 自機の進行方向には追従するが、FOVと画面ロールは固定して酔いを抑える。
+	bool follow_rotation = true;
 
 	bool editor_camera_active = false;
 	DirectX::XMFLOAT3 editor_position{};
