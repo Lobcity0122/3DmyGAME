@@ -20,6 +20,12 @@ public:
 	const DirectX::XMFLOAT3& get_focus() const { return currentFocus; }
 	const DirectX::XMFLOAT3& get_up() const { return cameraUp; }
 	float get_fov() const { return currentFov; }
+	float get_follow_range() const { return baseRange; }
+	float get_follow_height() const { return baseHeight; }
+	float get_follow_focus_height() const { return focusHeight; }
+	void set_follow_range(float value) { baseRange = value; }
+	void set_follow_height(float value) { baseHeight = value; }
+	void set_follow_focus_height(float value) { focusHeight = value; }
 
 private:
 	DirectX::XMFLOAT3 currentEye = { 0, 3, -8 };
@@ -29,9 +35,10 @@ private:
 	float currentFov = 60.0f;
 	float currentCameraAngleY = 0.0f;
 
-	float baseRange = 6.0f;
-	float baseHeight = 2.5f;
-	float focusHeight = 0.8f;
+	// 迷路全体を見失わない、やや高めの斜め見下ろし追従カメラ。
+	float baseRange = 8.0f;
+	float baseHeight = 4.5f;
+	float focusHeight = 0.5f;
 
 	float baseFov = 60.0f;
 	float maxFov = 85.0f;

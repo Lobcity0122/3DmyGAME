@@ -43,7 +43,7 @@ private:
 	DirectX::XMFLOAT2 move_direction{ 0.0f, 1.0f };
 	DirectX::XMFLOAT2 requested_direction{ 0.0f, 1.0f };
 	DirectX::XMFLOAT4X4 transform{};
-	float move_speed = 6.5f;
+	float move_speed = 4.5f;
 	// 静的メッシュの描画行列だけを上下させる、軽い浮遊演出。
 	// position は変えないため、移動・当たり判定の座標には影響しない。
 	float hover_time = 0.0f;
