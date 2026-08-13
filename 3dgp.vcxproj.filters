@@ -25,6 +25,9 @@
     <ClCompile Include="framework.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="MenuScene.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
@@ -152,6 +155,9 @@
     </ClInclude>
     <ClInclude Include="Scene.h">
       <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="MenuScene.h">
+      <Filter>Sources</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

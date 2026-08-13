@@ -1,5 +1,6 @@
 #include "framework.h"
 #include "PacmanGameScene.h"
+#include "MenuScene.h"
 #include <chrono>
 #include <cmath>
 #include <sstream>
@@ -89,7 +90,7 @@ bool framework::initialize()
 	viewport.MaxDepth = 1.0f;
 	immediate_context->RSSetViewports(1, &viewport);
 
-	change_scene(SceneType::PACMAN);
+	change_scene(SceneType::MENU);
 	return current_scene != nullptr;
 }
 
@@ -175,7 +176,11 @@ void framework::update(float elapsed_time)
 
 	if (current_scene && current_scene->get_type() != requested_scene_type)
 		change_scene(requested_scene_type);
-	if (current_scene) current_scene->update(elapsed_time);
+	if (current_scene)
+	{
+		current_scene->update(elapsed_time);
+		requested_scene_type = current_scene->get_next_scene();
+	}
 }
 
 void framework::render(float elapsed_time)
@@ -216,6 +221,10 @@ void framework::change_scene(SceneType new_scene_type)
 	current_scene.reset();
 	if (new_scene_type == SceneType::PACMAN)
 		current_scene = std::make_unique<PacmanGameScene>();
+	else if (new_scene_type == SceneType::PACMAN_ATTRACT)
+		current_scene = std::make_unique<PacmanGameScene>(true);
+	else if (new_scene_type == SceneType::MENU)
+		current_scene = std::make_unique<MenuScene>();
 	if (current_scene && current_scene->initialize(device.Get()))
 		requested_scene_type = new_scene_type;
 	else

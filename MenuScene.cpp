@@ -1,55 +1,84 @@
 #include "MenuScene.h"
-#ifdef USE_IMGUI
-#include "imgui/imgui.h"
-#endif
+#include <windows.h>
+#include <cmath>
+#include <algorithm>
 
-MenuScene::MenuScene() {}
-MenuScene::~MenuScene() {}
+namespace
+{
+	constexpr float screen_width = 1280.0f;
+	constexpr float screen_height = 720.0f;
+}
+
+MenuScene::MenuScene() = default;
+MenuScene::~MenuScene() = default;
 
 bool MenuScene::initialize(ID3D11Device* device)
 {
-	next_scene_type = SceneType::MENU; // 初期化時に自分に戻す
+	next_scene_type = SceneType::MENU;
+	selected_game = 0;
+	locked_message_timer = 0.0f;
+	background = std::make_unique<sprite>(device, L".\\resources\\cyberpunk.jpg");
+	font = std::make_unique<sprite>(device, L".\\resources\\fonts\\font0.png");
 	return true;
 }
 
 void MenuScene::update(float elapsed_time)
 {
-	// ロジック更新が必要ならここに書く
+	locked_message_timer = (std::max)(locked_message_timer - elapsed_time, 0.0f);
+	const bool left_pressed = ((GetAsyncKeyState(VK_LEFT) & 0x8000) || (GetAsyncKeyState('A') & 0x8000)) != 0;
+	const bool right_pressed = ((GetAsyncKeyState(VK_RIGHT) & 0x8000) || (GetAsyncKeyState('D') & 0x8000)) != 0;
+	const bool enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
+	if (left_pressed && !previous_left_pressed) selected_game = (selected_game + 2) % 3;
+	if (right_pressed && !previous_right_pressed) selected_game = (selected_game + 1) % 3;
+	if (enter_pressed && !previous_enter_pressed)
+	{
+		// BOOT����͖{�҂ł͂Ȃ��A�A�[�P�[�h➑̂炵���^�C�g���^�f����ʂ֓���B
+		if (selected_game == 0) next_scene_type = SceneType::PACMAN_ATTRACT;
+		else locked_message_timer = 1.5f;
+	}
+	previous_left_pressed = left_pressed;
+	previous_right_pressed = right_pressed;
+	previous_enter_pressed = enter_pressed;
 }
 
-void MenuScene::render(ID3D11DeviceContext* immediate_context, float elapsed_time)
+void MenuScene::render(ID3D11DeviceContext* immediate_context, float)
 {
-#ifdef USE_IMGUI
-	// PC画面・OS風のUIウィンドウ
-	ImGui::SetNextWindowPos(ImVec2(0, 0));
-	ImGui::SetNextWindowSize(ImVec2(1280, 720));
-
-	ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
-		ImGuiWindowFlags_NoResize |
-		ImGuiWindowFlags_NoMove |
-		ImGuiWindowFlags_NoCollapse;
-
-	ImGui::Begin("DesktopUI", nullptr, flags);
-
-	ImGui::Text("=== SELECT GAME ===");
-	ImGui::Spacing();
-
-	// レースゲーム起動ボタン
-	if (ImGui::Button("Launch Racing Game", ImVec2(200, 50)))
+	// 背景を暗くして、その上にゲーム機�E端末画面を重ねる、E	background->render(immediate_context, 0.0f, 0.0f, screen_width, screen_height, 0.08f, 0.10f, 0.22f, 1.0f, 0.0f);
+	const auto text = [this, immediate_context](const char* value, float x, float y, float size,
+		float r, float g, float b)
 	{
-		next_scene_type = SceneType::RACING; // 遷移フラグを立てる
+		font->textout(immediate_context, value, x, y, size, size, r, g, b, 1.0f);
+	};
+
+	text("NEXUS-01 GAME TERMINAL", 180, 60, 25, 0.25f, 1.0f, 0.85f);
+	text("SYSTEM STATUS: ONLINE", 180, 100, 14, 0.45f, 0.80f, 1.0f);
+	text("----------------------------------------------------------------", 150, 135, 10, 0.15f, 0.85f, 0.65f);
+
+	const char* titles[] = { "CIRCUIT TRAX", "VOID RACER", "STAR RELAY" };
+	const char* statuses[] = { "ONLINE", "LOCKED", "COMING SOON" };
+	const float card_x[] = { 150.0f, 470.0f, 790.0f };
+	for (int index = 0; index < 3; ++index)
+	{
+		const bool selected = selected_game == index;
+		const float r = selected ? 0.15f : 0.35f;
+		const float g = selected ? 1.00f : 0.35f;
+		const float b = selected ? 0.65f : 0.55f;
+		text(selected ? ">" : " ", card_x[index], 255, 24, r, g, b);
+		text(titles[index], card_x[index] + 28, 255, selected ? 22.0f : 17.0f, r, g, b);
+		text(statuses[index], card_x[index] + 28, 292, 14, r, g, b);
+		text("[----------]", card_x[index] + 28, 325, 14, r, g, b);
 	}
 
-	ImGui::Spacing();
-
-	// OnlyUp起動ボタン
-	if (ImGui::Button("Launch OnlyUp Game", ImVec2(200, 50)))
-	{
-		next_scene_type = SceneType::ONLYUP; // 遷移フラグを立てる
-	}
-
-	ImGui::End();
-#endif
+	text("CIRCUIT TRAX", 180, 450, 21, 0.25f, 1.0f, 0.85f);
+	text("RESTORE THE LOST GRID.", 180, 485, 14, 0.75f, 0.90f, 1.0f);
+	text("AVOID SECURITY DRONES. COMPLETE EVERY CIRCUIT.", 180, 512, 14, 0.75f, 0.90f, 1.0f);
+	text("[LEFT][RIGHT]: SELECT     [ENTER]: BOOT", 180, 630, 15, 0.25f, 1.0f, 0.85f);
+	if (locked_message_timer > 0.0f)
+		text("GAME DATA LOCKED", 490, 570, 18, 1.0f, 0.25f, 0.25f);
 }
 
-void MenuScene::uninitialize() {}
+void MenuScene::uninitialize()
+{
+	font.reset();
+	background.reset();
+}

@@ -14,11 +14,14 @@
 class PacmanGameScene final : public Scene
 {
 public:
+	// false は通常プレイ、true はタイトル用の無操作デモ。
+	explicit PacmanGameScene(bool attract_mode = false) : attract_mode(attract_mode) {}
 	bool initialize(ID3D11Device* device) override;
 	void update(float elapsed_time) override;
 	void render(ID3D11DeviceContext* immediate_context, float elapsed_time) override;
 	void uninitialize() override;
-	SceneType get_type() const override { return SceneType::PACMAN; }
+	SceneType get_type() const override { return attract_mode ? SceneType::PACMAN_ATTRACT : SceneType::PACMAN; }
+	SceneType get_next_scene() const override { return next_scene_type; }
 
 private:
 	// PacmanPlayerがグリッド移動を扱い、CameraControllerが追従ビューを作る。
@@ -114,6 +117,11 @@ private:
 	float state_timer = 0.0f;
 	bool player_visible = true;
 	bool exit_requested = false;
+	// デモは本編と同一の更新・描画経路を使い、プレイヤーの入力だけをAIへ差し替える。
+	bool attract_mode = false;
+	SceneType next_scene_type = SceneType::PACMAN;
+	bool previous_enter_pressed = false;
+	bool previous_escape_pressed = false;
 	DirectX::XMFLOAT3 player_spawn_position{};
 	DirectX::XMFLOAT3 enemy_spawn_position{};
 

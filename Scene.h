@@ -10,6 +10,8 @@ using namespace Microsoft::WRL;
 enum class SceneType
 {
 	MENU,
+	// タイトル画面の背後で、本編と同じ3Dシーンを自動操作するデモ再生。
+	PACMAN_ATTRACT,
 	PACMAN,
 	ONLYUP
 };
@@ -34,4 +36,7 @@ public:
 
 	// シーンタイプを取得
 	virtual SceneType get_type() const = 0;
+
+	// シーン自身が遷移を要求する場合に使う。通常は現在のシーンを継続する。
+	virtual SceneType get_next_scene() const { return get_type(); }
 };

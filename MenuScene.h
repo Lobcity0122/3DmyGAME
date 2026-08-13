@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Scene.h"
+#include "sprite.h"
+#include <memory>
 
 class MenuScene : public Scene
 {
@@ -18,4 +20,11 @@ public:
 
 private:
 	SceneType next_scene_type = SceneType::MENU;
+	std::unique_ptr<sprite> background;
+	std::unique_ptr<sprite> font;
+	int selected_game = 0;
+	bool previous_left_pressed = false;
+	bool previous_right_pressed = false;
+	bool previous_enter_pressed = false;
+	float locked_message_timer = 0.0f;
 };

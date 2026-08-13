@@ -16,6 +16,12 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	state_timer = 0.0f;
 	player_visible = true;
 	exit_requested = false;
+	next_scene_type = get_type();
+	// メニューでBOOTを押したEnterは、遷移直後にもまだ押されていることがある。
+	// 現在の状態を初期値にしておけば、いったんキーを離してから次に押すまで
+	// タイトルデモが本編へスキップされない。
+	previous_enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
+	previous_escape_pressed = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
 	player_circuit_segments.clear();
 	circuit_cells.clear();
 
@@ -91,6 +97,17 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 
 void PacmanGameScene::update(float elapsed_time)
 {
+	// アトラクトモードはEnterで本編へ、Escでゲーム選択画面へ戻れる。
+	// 押下した瞬間だけを拾うため、シーン切り替えを連続発生させない。
+	if (attract_mode)
+	{
+		const bool enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
+		const bool escape_pressed = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
+		if (enter_pressed && !previous_enter_pressed) next_scene_type = SceneType::PACMAN;
+		if (escape_pressed && !previous_escape_pressed) next_scene_type = SceneType::MENU;
+		previous_enter_pressed = enter_pressed;
+		previous_escape_pressed = escape_pressed;
+	}
 
 	if (editor_debug.rotate_background)
 	{
@@ -120,12 +137,20 @@ void PacmanGameScene::update(float elapsed_time)
 		if (game_state == GameState::Playing)
 		{
 			const XMFLOAT3 player_previous_position = player->get_position();
-			player->update(elapsed_time, collision_mesh.get(), stage_world);
+			// デモ中の白い自機も敵と同じ壁回避AIで動かす。
+			// 描画・コリジョン・カメラは本編と共通なので、宣伝映像と実際のゲームが一致する。
+			if (attract_mode)
+				player->update_enemy(elapsed_time, collision_mesh.get(), stage_world);
+			else
+				player->update(elapsed_time, collision_mesh.get(), stage_world);
 			record_player_circuit(player_previous_position, player->get_position());
-			recover_circuit_cells_at(player->get_position());
+			if (!attract_mode) recover_circuit_cells_at(player->get_position());
 			enemy->update_enemy(elapsed_time, collision_mesh.get(), stage_world);
-			if (is_player_touching_enemy()) begin_respawn_or_game_over();
-			else if (!circuit_cells.empty() && get_recovered_circuit_cell_count() == static_cast<int>(circuit_cells.size())) begin_game_clear();
+			if (!attract_mode)
+			{
+				if (is_player_touching_enemy()) begin_respawn_or_game_over();
+				else if (!circuit_cells.empty() && get_recovered_circuit_cell_count() == static_cast<int>(circuit_cells.size())) begin_game_clear();
+			}
 		}
 		else if (game_state == GameState::Respawning)
 		{
@@ -538,6 +563,21 @@ void PacmanGameScene::draw_editor_helpers(ID3D11DeviceContext* immediate_context
 void PacmanGameScene::draw_hud()
 {
 #ifdef USE_IMGUI
+	if (attract_mode)
+	{
+		// タイトルの文字はImGuiで重ねるだけ。背後の3Dデモは通常の本編描画そのもの。
+		ImGui::SetNextWindowPos(ImVec2(32, 28), ImGuiCond_Always);
+		ImGui::SetNextWindowBgAlpha(0.62f);
+		ImGui::Begin("CIRCUIT TRAX - ATTRACT MODE", nullptr,
+			ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove);
+		ImGui::TextColored(ImVec4(0.15f, 1.0f, 0.60f, 1.0f), "CIRCUIT TRAX");
+		ImGui::TextUnformatted("RESTORE THE LOST GRID");
+		ImGui::Separator();
+		ImGui::TextUnformatted("ATTRACT MODE / LIVE DEMO");
+		ImGui::TextUnformatted("[ENTER] START GAME     [ESC] BACK TO TERMINAL");
+		ImGui::End();
+		return;
+	}
 
 	ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowSize(ImVec2(300, 160), ImGuiCond_FirstUseEver);
