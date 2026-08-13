@@ -1,6 +1,7 @@
 #include "framework.h"
 #include "PacmanGameScene.h"
 #include "MenuScene.h"
+#include "ResultScene.h"
 #include <chrono>
 #include <cmath>
 #include <sstream>
@@ -223,6 +224,8 @@ void framework::change_scene(SceneType new_scene_type)
 		current_scene = std::make_unique<PacmanGameScene>();
 	else if (new_scene_type == SceneType::PACMAN_ATTRACT)
 		current_scene = std::make_unique<PacmanGameScene>(true);
+	else if (new_scene_type == SceneType::PACMAN_RESULT)
+		current_scene = std::make_unique<ResultScene>();
 	else if (new_scene_type == SceneType::MENU)
 		current_scene = std::make_unique<MenuScene>();
 	if (current_scene && current_scene->initialize(device.Get()))

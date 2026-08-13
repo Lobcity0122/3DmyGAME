@@ -27,6 +27,7 @@ private:
 	// PacmanPlayerがグリッド移動を扱い、CameraControllerが追従ビューを作る。
 	std::unique_ptr<PacmanPlayer> player;
 	std::unique_ptr<PacmanPlayer> enemy;
+	std::unique_ptr<PacmanPlayer> enemy_second;
 	std::unique_ptr<CameraController> camera_controller;
 
 	// 2つの独立したモデル読み込み用パス。ここに並べておくことで、違いや使い方が一目で比較できる。
@@ -109,6 +110,11 @@ private:
 	DirectX::XMFLOAT4X4 stage_world{};
 	DirectX::XMFLOAT4X4 background_world{};
 	float total_time = 0.0f;
+	// Score belongs to the play scene. ResultScene only displays the completed record.
+	int score = 0;
+	float survival_bonus_timer = 0.0f;
+	// Enemy switches from patrol to chase only inside this horizontal range.
+	float enemy_chase_range = 12.0f;
 
 	// 敵接触後の処理を、通常プレイから分離して分かりやすく管理する。
 	enum class GameState { Playing, Respawning, GameOverFade, GameClearFade };
@@ -124,6 +130,7 @@ private:
 	bool previous_escape_pressed = false;
 	DirectX::XMFLOAT3 player_spawn_position{};
 	DirectX::XMFLOAT3 enemy_spawn_position{};
+	DirectX::XMFLOAT3 enemy_second_spawn_position{};
 
 	// Make Trax型の「復旧済み回路」。敵ではなく自機が通過した区間だけを保持する。
 	struct CircuitSegment
@@ -156,9 +163,11 @@ private:
 	void record_player_circuit(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end);
 	void draw_player_circuit(ID3D11DeviceContext* immediate_context);
 	void build_circuit_cells();
-	void recover_circuit_cells_at(const DirectX::XMFLOAT3& position);
+	// Returns how many previously-unrecovered corridor cells were touched this frame.
+	int recover_circuit_cells_at(const DirectX::XMFLOAT3& position);
 	int get_recovered_circuit_cell_count() const;
 	bool is_player_touching_enemy() const;
 	void begin_respawn_or_game_over();
 	void begin_game_clear();
+	void finish_to_result();
 };

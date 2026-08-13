@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -91,7 +91,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>USE_IMGUI;WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>;C:¥Program Files¥Autodesk¥FBX¥FBX SDK¥2020.3.1¥include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.1\include</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -143,7 +143,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>;C:¥Program Files¥Autodesk¥FBX¥FBX SDK¥2020.3.1¥include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.1\include</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -201,6 +201,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="framework.cpp" />
 	<ClCompile Include="MenuScene.cpp" />
+	<ClCompile Include="ResultScene.cpp" />
     <ClCompile Include="PacmanPlayer.cpp" />
     <ClCompile Include="PacmanGameScene.cpp" />
     <ClCompile Include="shader.cpp" />
@@ -228,6 +229,7 @@
     <ClInclude Include="PacmanPlayer.h" />
     <ClInclude Include="PacmanGameScene.h" />
 	<ClInclude Include="MenuScene.h" />
+	<ClInclude Include="ResultScene.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="shader.h" />
     <ClInclude Include="skinned_mesh.h" />

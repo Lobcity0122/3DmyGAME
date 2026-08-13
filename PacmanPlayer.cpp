@@ -119,9 +119,15 @@ void PacmanPlayer::update(float elapsed_time, const static_mesh* collision_mesh,
 	update_transform();
 }
 
-void PacmanPlayer::update_enemy(float elapsed_time, const static_mesh* collision_mesh, const XMFLOAT4X4& collision_world)
+void PacmanPlayer::update_enemy(float elapsed_time, const static_mesh* collision_mesh,
+	const XMFLOAT4X4& collision_world, const XMFLOAT3* target_position, float chase_range)
 {
 	hover_time += elapsed_time;
+	const bool has_target = target_position != nullptr && chase_range > 0.0f;
+	const float target_dx = has_target ? target_position->x - position.x : 0.0f;
+	const float target_dz = has_target ? target_position->z - position.z : 0.0f;
+	const bool is_chasing = has_target &&
+		(target_dx * target_dx + target_dz * target_dz <= chase_range * chase_range);
 	const float step = move_speed * elapsed_time;
 	XMFLOAT3 next_position = position;
 	next_position.x += move_direction.x * step;
@@ -142,6 +148,10 @@ void PacmanPlayer::update_enemy(float elapsed_time, const static_mesh* collision
 		ai_random_state ^= ai_random_state << 5;
 		const XMFLOAT2 directions[] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
 		const unsigned int first = ai_random_state % 4;
+		bool found_path = false;
+		float best_distance_squared = 0.0f;
+		XMFLOAT3 chosen_position{};
+		XMFLOAT2 chosen_direction{};
 		for (unsigned int offset = 0; offset < 4; ++offset)
 		{
 			const XMFLOAT2 candidate_direction = directions[(first + offset) % 4];
@@ -162,10 +172,25 @@ void PacmanPlayer::update_enemy(float elapsed_time, const static_mesh* collision
 			if (collision_mesh == nullptr || !Collision::SweepAABB2D(candidate_position, test_end,
 				collision_half_extent, collision_world, collision_mesh, test_fraction, test_normal))
 			{
-				position = candidate_position;
-				move_direction = candidate_direction;
-				break;
+				// Patrol preserves the randomized first valid path. Chase mode instead
+				// evaluates every valid direction and chooses the closest next position.
+				const float dx = has_target ? test_end.x - target_position->x : 0.0f;
+				const float dz = has_target ? test_end.z - target_position->z : 0.0f;
+				const float distance_squared = dx * dx + dz * dz;
+				if (!found_path || !is_chasing || distance_squared < best_distance_squared)
+				{
+					found_path = true;
+					best_distance_squared = distance_squared;
+					chosen_position = candidate_position;
+					chosen_direction = candidate_direction;
+					if (!is_chasing) break;
+				}
 			}
+		}
+		if (found_path)
+		{
+			position = chosen_position;
+			move_direction = chosen_direction;
 		}
 	}
 	angle.y = std::atan2(move_direction.x, move_direction.y);

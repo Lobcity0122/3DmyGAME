@@ -16,6 +16,8 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	state_timer = 0.0f;
 	player_visible = true;
 	exit_requested = false;
+	score = 0;
+	survival_bonus_timer = 0.0f;
 	next_scene_type = get_type();
 	// メニューでBOOTを押したEnterは、遷移直後にもまだ押されていることがある。
 	// 現在の状態を初期値にしておけば、いったんキーを離してから次に押すまで
@@ -29,6 +31,8 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	player->initialize();
 	enemy = std::make_unique<PacmanPlayer>();
 	enemy->initialize();
+	enemy_second = std::make_unique<PacmanPlayer>();
+	enemy_second->initialize();
 	camera_controller = std::make_unique<CameraController>();
 	player_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
 
@@ -36,6 +40,7 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	player_mesh->get_bounding_box(player_model_min, player_model_max);
 	player->set_collision_model_bounds(player_model_min, player_model_max);
 	enemy->set_collision_model_bounds(player_model_min, player_model_max);
+	enemy_second->set_collision_model_bounds(player_model_min, player_model_max);
 	stage_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage.obj");
 	background_mesh = std::make_unique<static_mesh>(device, L".\\resources\\skybox_side_chicken_gun\\haikei.obj");
 
@@ -144,8 +149,21 @@ void PacmanGameScene::update(float elapsed_time)
 			else
 				player->update(elapsed_time, collision_mesh.get(), stage_world);
 			record_player_circuit(player_previous_position, player->get_position());
-			if (!attract_mode) recover_circuit_cells_at(player->get_position());
-			enemy->update_enemy(elapsed_time, collision_mesh.get(), stage_world);
+			if (!attract_mode)
+			{
+				// A corridor scores only once, no matter how often the player revisits it.
+				score += recover_circuit_cells_at(player->get_position()) * 100;
+				survival_bonus_timer += elapsed_time;
+				while (survival_bonus_timer >= 1.0f)
+				{
+					score += 10;
+					survival_bonus_timer -= 1.0f;
+				}
+			}
+			enemy->update_enemy(elapsed_time, collision_mesh.get(), stage_world,
+				&player->get_position(), enemy_chase_range);
+			enemy_second->update_enemy(elapsed_time, collision_mesh.get(), stage_world,
+				&player->get_position(), enemy_chase_range);
 			if (!attract_mode)
 			{
 				if (is_player_touching_enemy()) begin_respawn_or_game_over();
@@ -160,6 +178,7 @@ void PacmanGameScene::update(float elapsed_time)
 			{
 				player->set_position(player_spawn_position);
 				enemy->set_position(enemy_spawn_position);
+				enemy_second->set_position(enemy_second_spawn_position);
 				game_state = GameState::Playing;
 				state_timer = 0.0f;
 				player_visible = true;
@@ -168,9 +187,9 @@ void PacmanGameScene::update(float elapsed_time)
 		else if ((game_state == GameState::GameOverFade || game_state == GameState::GameClearFade) &&
 			state_timer >= 2.8f && !exit_requested)
 		{
-
-			exit_requested = true;
-			PostMessage(GetActiveWindow(), WM_CLOSE, 0, 0);
+			// Fade-out ends at a result screen instead of closing the application.
+			// The result scene owns the "press Enter to return" step.
+			finish_to_result();
 		}
 		if (game_state == GameState::GameClearFade)
 		{
@@ -221,6 +240,13 @@ void PacmanGameScene::configure_object_transforms()
 	enemy->set_position(enemy_spawn_position);
 	enemy->set_angle({ 0.0f, 0.0f, 0.0f });
 	enemy->set_scale({ 0.6f, 0.6f, 0.6f });
+
+	// A second drone begins on the opposing lower corridor. Its orange color
+	// makes it readable without requiring a separate mesh asset.
+	enemy_second_spawn_position = { -10.0f, 1.3f, 13.0f };
+	enemy_second->set_position(enemy_second_spawn_position);
+	enemy_second->set_angle({ 0.0f, DirectX::XM_PI, 0.0f });
+	enemy_second->set_scale({ 0.6f, 0.6f, 0.6f });
 }
 
 void PacmanGameScene::update_object_world_matrices()
@@ -335,6 +361,7 @@ void PacmanGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
 	if (player_visible)
 		player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
 	player_mesh->render(immediate_context, enemy->get_transform(), XMFLOAT4(1, 0.08f, 0.08f, 1), nullptr, true);
+	player_mesh->render(immediate_context, enemy_second->get_transform(), XMFLOAT4(1, 0.55f, 0.05f, 1), nullptr, true);
 
 	immediate_context->OMSetRenderTargets(1, previous_rtv.GetAddressOf(), previous_dsv.Get());
 	immediate_context->RSSetViewports(1, &previous_viewport);
@@ -393,6 +420,7 @@ void PacmanGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 	if (player_visible)
 		player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1));
 	player_mesh->render(immediate_context, enemy->get_transform(), XMFLOAT4(1, 0.08f, 0.08f, 1));
+	player_mesh->render(immediate_context, enemy_second->get_transform(), XMFLOAT4(1, 0.55f, 0.05f, 1));
 	if (editor_debug.show_collision_model)
 	{
 		Microsoft::WRL::ComPtr<ID3D11RasterizerState> previous_rasterizer;
@@ -468,9 +496,9 @@ void PacmanGameScene::build_circuit_cells()
 	}
 }
 
-void PacmanGameScene::recover_circuit_cells_at(const XMFLOAT3& position)
+int PacmanGameScene::recover_circuit_cells_at(const XMFLOAT3& position)
 {
-
+	int newly_recovered = 0;
 	const XMFLOAT2& player_half_extent = player->get_collision_half_extent();
 	const float player_min_x = position.x - player_half_extent.x;
 	const float player_max_x = position.x + player_half_extent.x;
@@ -478,10 +506,14 @@ void PacmanGameScene::recover_circuit_cells_at(const XMFLOAT3& position)
 	const float player_max_z = position.z + player_half_extent.y;
 	for (CircuitCell& cell : circuit_cells)
 	{
-		if (player_max_x >= cell.minimum.x && player_min_x <= cell.maximum.x &&
+		if (!cell.recovered && player_max_x >= cell.minimum.x && player_min_x <= cell.maximum.x &&
 			player_max_z >= cell.minimum.z && player_min_z <= cell.maximum.z)
+		{
 			cell.recovered = true;
+			++newly_recovered;
+		}
 	}
+	return newly_recovered;
 }
 
 int PacmanGameScene::get_recovered_circuit_cell_count() const
@@ -586,6 +618,8 @@ void PacmanGameScene::draw_hud()
 	ImGui::Text("MOVE SPEED: %.1f", player->get_move_speed());
 	ImGui::Text("LIVES: %d / 3", lives);
 	ImGui::Text("CIRCUIT: %d / %d", get_recovered_circuit_cell_count(), static_cast<int>(circuit_cells.size()));
+	ImGui::Text("SCORE: %d   HI: %d", score, session_high_score);
+	ImGui::DragFloat("Enemy chase range", &enemy_chase_range, 0.1f, 0.0f, 40.0f);
 	ImGui::Text("AUTO MOVE  A: left  D: right  S: reverse");
 	const int minutes = static_cast<int>(total_time) / 60;
 	const float seconds = std::fmod(total_time, 60.0f);
@@ -742,12 +776,16 @@ bool PacmanGameScene::is_player_touching_enemy() const
 
 
 	const DirectX::XMFLOAT3& player_position = player->get_position();
-	const DirectX::XMFLOAT3& enemy_position = enemy->get_position();
 	const float player_half_size = (std::max)(player->get_scale().x, player->get_scale().z);
-	const float enemy_half_size = (std::max)(enemy->get_scale().x, enemy->get_scale().z);
-	const float limit = player_half_size + enemy_half_size;
-	return std::fabs(player_position.x - enemy_position.x) < limit &&
-		std::fabs(player_position.z - enemy_position.z) < limit;
+	const auto touches = [&player_position, player_half_size](const PacmanPlayer& other)
+	{
+		const DirectX::XMFLOAT3& other_position = other.get_position();
+		const float other_half_size = (std::max)(other.get_scale().x, other.get_scale().z);
+		const float limit = player_half_size + other_half_size;
+		return std::fabs(player_position.x - other_position.x) < limit &&
+			std::fabs(player_position.z - other_position.z) < limit;
+	};
+	return touches(*enemy) || touches(*enemy_second);
 }
 
 void PacmanGameScene::begin_respawn_or_game_over()
@@ -773,6 +811,26 @@ void PacmanGameScene::begin_game_clear()
 	player_visible = true;
 }
 
+void PacmanGameScene::finish_to_result()
+{
+	if (exit_requested) return;
+	exit_requested = true;
+	latest_game_result.cleared = game_state == GameState::GameClearFade;
+	latest_game_result.recovered_circuits = get_recovered_circuit_cell_count();
+	latest_game_result.total_circuits = static_cast<int>(circuit_cells.size());
+	latest_game_result.remaining_lives = lives;
+	latest_game_result.elapsed_seconds = total_time;
+	if (latest_game_result.cleared)
+	{
+		// Reaching the objective rewards remaining lives, not merely elapsed time.
+		score += 5000 + lives * 1000;
+	}
+	session_high_score = (std::max)(session_high_score, score);
+	latest_game_result.score = score;
+	latest_game_result.high_score = session_high_score;
+	next_scene_type = SceneType::PACMAN_RESULT;
+}
+
 void PacmanGameScene::uninitialize()
 {
 
@@ -792,6 +850,7 @@ void PacmanGameScene::uninitialize()
 	collision_wireframe_rasterizer_state.Reset();
 	player.reset();
 	enemy.reset();
+	enemy_second.reset();
 	if (camera_controller) camera_controller->stop_editor_camera();
 	camera_controller.reset();
 }

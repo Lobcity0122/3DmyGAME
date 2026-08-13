@@ -11,8 +11,11 @@ public:
 	void initialize();
 	// collision_mesh は描画しない壁専用OBJ。指定時だけ前方レイとの交差を調べる。
 	void update(float elapsed_time, const static_mesh* collision_mesh, const DirectX::XMFLOAT4X4& collision_world);
-	// 入力を使わない敵用の移動。壁に着いた時だけ進める方向をランダムに選ぶ。
-	void update_enemy(float elapsed_time, const static_mesh* collision_mesh, const DirectX::XMFLOAT4X4& collision_world);
+	// Input-free movement for enemies. With a nearby target, the next valid path
+	// is chosen to reduce distance; otherwise it uses the usual random patrol.
+	void update_enemy(float elapsed_time, const static_mesh* collision_mesh,
+		const DirectX::XMFLOAT4X4& collision_world, const DirectX::XMFLOAT3* target_position = nullptr,
+		float chase_range = 0.0f);
 
 	const DirectX::XMFLOAT3& get_position() const { return position; }
 	void set_position(const DirectX::XMFLOAT3& value) { position = value; }
