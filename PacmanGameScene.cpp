@@ -162,8 +162,16 @@ void PacmanGameScene::update(float elapsed_time)
 			}
 			enemy->update_enemy(elapsed_time, collision_mesh.get(), stage_world,
 				&player->get_position(), enemy_chase_range);
+			// The orange drone does not target the player's current position. It targets
+			// a point ahead of the current heading, so it tends to cut off an escape route.
+			const XMFLOAT3& player_position = player->get_position();
+			const float player_heading = player->get_angle().y;
+			const XMFLOAT3 intercept_target{
+				player_position.x + std::sinf(player_heading) * enemy_intercept_distance,
+				player_position.y,
+				player_position.z + std::cosf(player_heading) * enemy_intercept_distance };
 			enemy_second->update_enemy(elapsed_time, collision_mesh.get(), stage_world,
-				&player->get_position(), enemy_chase_range);
+				&intercept_target, enemy_chase_range);
 			if (!attract_mode)
 			{
 				if (is_player_touching_enemy()) begin_respawn_or_game_over();
@@ -620,6 +628,7 @@ void PacmanGameScene::draw_hud()
 	ImGui::Text("CIRCUIT: %d / %d", get_recovered_circuit_cell_count(), static_cast<int>(circuit_cells.size()));
 	ImGui::Text("SCORE: %d   HI: %d", score, session_high_score);
 	ImGui::DragFloat("Enemy chase range", &enemy_chase_range, 0.1f, 0.0f, 40.0f);
+	ImGui::DragFloat("Orange intercept distance", &enemy_intercept_distance, 0.1f, 0.0f, 20.0f);
 	ImGui::Text("AUTO MOVE  A: left  D: right  S: reverse");
 	const int minutes = static_cast<int>(total_time) / 60;
 	const float seconds = std::fmod(total_time, 60.0f);

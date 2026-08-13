@@ -115,6 +115,8 @@ private:
 	float survival_bonus_timer = 0.0f;
 	// Enemy switches from patrol to chase only inside this horizontal range.
 	float enemy_chase_range = 12.0f;
+	// The orange interceptor aims this far ahead of the player's current direction.
+	float enemy_intercept_distance = 6.0f;
 
 	// 敵接触後の処理を、通常プレイから分離して分かりやすく管理する。
 	enum class GameState { Playing, Respawning, GameOverFade, GameClearFade };
