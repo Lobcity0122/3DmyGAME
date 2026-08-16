@@ -28,9 +28,9 @@
     <ClCompile Include="MenuScene.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-	<ClCompile Include="ResultScene.cpp">
-	  <Filter>Sources</Filter>
-	</ClCompile>
+    <ClCompile Include="ResultScene.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
@@ -159,12 +159,12 @@
     <ClInclude Include="Scene.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="MenuScene.h">
-      <Filter>Sources</Filter>
+    <ClInclude Include="ResultScene.h">
+      <Filter>Headers</Filter>
     </ClInclude>
-	<ClInclude Include="ResultScene.h">
-	  <Filter>Headers</Filter>
-	</ClInclude>
+    <ClInclude Include="MenuScene.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="sprite.hlsli">

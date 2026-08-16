@@ -115,6 +115,20 @@ private:
 	// Score belongs to the play scene. ResultScene only displays the completed record.
 	int score = 0;
 	float survival_bonus_timer = 0.0f;
+	int recovery_chain = 0;
+	float recovery_chain_time_remaining = 0.0f;
+	// Generous window: this is an arcade reward for keeping momentum, not a strict test.
+	static constexpr float recovery_chain_window_seconds = 4.5f;
+	// Close passes reward brave routing, but each enemy has a short anti-farming cooldown.
+	float near_miss_radius = 2.25f;
+	float near_miss_cooldown_seconds = 1.50f;
+	float enemy_near_miss_cooldown = 0.0f;
+	float enemy_second_near_miss_cooldown = 0.0f;
+	float near_miss_popup_time = 0.0f;
+	int near_miss_popup_score = 0;
+	// Visual-only endgame escalation. Enemy movement settings stay unchanged.
+	int system_alert_level = 0;
+	float system_alert_popup_time = 0.0f;
 	// Enemy switches from patrol to chase only inside this horizontal range.
 	float enemy_chase_range = 12.0f;
 	// The orange interceptor aims this far ahead of the player's current direction.
@@ -190,7 +204,10 @@ private:
 	// Returns how many previously-unrecovered corridor cells were touched this frame.
 	int recover_circuit_cells_at(const DirectX::XMFLOAT3& position);
 	int get_recovered_circuit_cell_count() const;
+	int get_recovery_chain_multiplier() const;
+	void update_system_alert(float elapsed_time);
 	bool is_player_touching_enemy() const;
+	bool award_near_miss_if_needed(const PacmanPlayer& other, float& cooldown);
 	void begin_respawn_or_game_over();
 	void begin_game_clear();
 	void finish_to_result();

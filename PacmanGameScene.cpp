@@ -19,6 +19,14 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	exit_requested = false;
 	score = 0;
 	survival_bonus_timer = 0.0f;
+	recovery_chain = 0;
+	recovery_chain_time_remaining = 0.0f;
+	enemy_near_miss_cooldown = 0.0f;
+	enemy_second_near_miss_cooldown = 0.0f;
+	near_miss_popup_time = 0.0f;
+	near_miss_popup_score = 0;
+	system_alert_level = 0;
+	system_alert_popup_time = 0.0f;
 	next_scene_type = get_type();
 	// メニューでBOOTを押したEnterは、遷移直後にもまだ押されていることがある。
 	// 現在の状態を初期値にしておけば、いったんキーを離してから次に押すまで
@@ -105,6 +113,13 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 
 void PacmanGameScene::update(float elapsed_time)
 {
+	if (!attract_mode)
+	{
+		enemy_near_miss_cooldown = (std::max)(enemy_near_miss_cooldown - elapsed_time, 0.0f);
+		enemy_second_near_miss_cooldown = (std::max)(enemy_second_near_miss_cooldown - elapsed_time, 0.0f);
+		near_miss_popup_time = (std::max)(near_miss_popup_time - elapsed_time, 0.0f);
+		system_alert_popup_time = (std::max)(system_alert_popup_time - elapsed_time, 0.0f);
+	}
 	// アトラクトモードはEnterで本編へ、Escでゲーム選択画面へ戻れる。
 	// 押下した瞬間だけを拾うため、シーン切り替えを連続発生させない。
 	if (attract_mode)
@@ -165,8 +180,20 @@ void PacmanGameScene::update(float elapsed_time)
 				record_player_circuit(player_previous_position, player->get_position());
 			if (!attract_mode)
 			{
-				// A corridor scores only once, no matter how often the player revisits it.
-				score += recover_circuit_cells_at(player->get_position()) * 100;
+				// New cells extend the short chain window. Revisiting a recovered road does not.
+				const int newly_recovered = recover_circuit_cells_at(player->get_position());
+				if (newly_recovered > 0)
+				{
+					recovery_chain += newly_recovered;
+					recovery_chain_time_remaining = recovery_chain_window_seconds;
+					score += newly_recovered * 100 * get_recovery_chain_multiplier();
+				}
+				else
+				{
+					recovery_chain_time_remaining = (std::max)(recovery_chain_time_remaining - elapsed_time, 0.0f);
+					if (recovery_chain_time_remaining <= 0.0f) recovery_chain = 0;
+				}
+				update_system_alert(elapsed_time);
 				survival_bonus_timer += elapsed_time;
 				while (survival_bonus_timer >= 1.0f)
 				{
@@ -190,6 +217,8 @@ void PacmanGameScene::update(float elapsed_time)
 			apply_warp_tunnel(*enemy_second);
 			if (!attract_mode)
 			{
+				award_near_miss_if_needed(*enemy, enemy_near_miss_cooldown);
+				award_near_miss_if_needed(*enemy_second, enemy_second_near_miss_cooldown);
 				if (is_player_touching_enemy()) begin_respawn_or_game_over();
 				else if (!circuit_cells.empty() && get_recovered_circuit_cell_count() == static_cast<int>(circuit_cells.size())) begin_game_clear();
 			}
@@ -426,9 +455,14 @@ void PacmanGameScene::update_scene_constants(ID3D11DeviceContext* immediate_cont
 		light_settings.position.x, light_settings.position.y, light_settings.position.z, light_settings.range);
 	constants.light_color_intensity = XMFLOAT4(
 		light_settings.color.x, light_settings.color.y, light_settings.color.z, light_settings.intensity);
+	const float alert_pulse = system_alert_level > 0
+		? 0.5f + 0.5f * std::sinf(total_time * (3.0f + system_alert_level * 2.0f))
+		: 0.0f;
+	const float alert_ambient_boost = system_alert_level * 0.05f + alert_pulse * system_alert_level * 0.025f;
+	const float alert_exposure_boost = system_alert_level * 0.12f + alert_pulse * system_alert_level * 0.06f;
 	constants.ambient_color_intensity = XMFLOAT4(
 		light_settings.ambient_color.x, light_settings.ambient_color.y, light_settings.ambient_color.z,
-		light_settings.ambient_intensity);
+		light_settings.ambient_intensity + alert_ambient_boost);
 	constants.render_options = XMFLOAT4(
 		light_settings.use_point_light ? 1.0f : 0.0f,
 		light_settings.unlit_texture_check ? 1.0f : 0.0f,
@@ -436,7 +470,7 @@ void PacmanGameScene::update_scene_constants(ID3D11DeviceContext* immediate_cont
 	XMStoreFloat4x4(&constants.light_view_projection, calculate_light_view_projection());
 	constants.shadow_settings = XMFLOAT4(0.0015f,
 		(!light_settings.use_point_light && light_settings.use_shadows) ? 1.0f : 0.0f, 0.0f, 0.0f);
-	constants.post_process_settings = XMFLOAT4(light_settings.exposure_ev, 0.0f, 0.0f, 0.0f);
+	constants.post_process_settings = XMFLOAT4(light_settings.exposure_ev + alert_exposure_boost, 0.0f, 0.0f, 0.0f);
 
 
 	immediate_context->UpdateSubresource(scene_constant_buffer.Get(), 0, nullptr, &constants, 0, 0);
@@ -557,6 +591,25 @@ int PacmanGameScene::get_recovered_circuit_cell_count() const
 		[](const CircuitCell& cell) { return cell.recovered; }));
 }
 
+int PacmanGameScene::get_recovery_chain_multiplier() const
+{
+	// Friendly arcade curve: x2 starts at CHAIN 3, then rises every three cells.
+	return (std::min)(1 + recovery_chain / 3, 5);
+}
+
+void PacmanGameScene::update_system_alert(float)
+{
+	if (circuit_cells.empty()) return;
+	const float recovery_ratio = static_cast<float>(get_recovered_circuit_cell_count()) /
+		static_cast<float>(circuit_cells.size());
+	const int next_level = recovery_ratio >= 0.90f ? 2 : recovery_ratio >= 0.50f ? 1 : 0;
+	if (next_level > system_alert_level)
+	{
+		system_alert_level = next_level;
+		system_alert_popup_time = 1.80f;
+	}
+}
+
 void PacmanGameScene::draw_player_circuit(ID3D11DeviceContext* immediate_context)
 {
 
@@ -564,7 +617,21 @@ void PacmanGameScene::draw_player_circuit(ID3D11DeviceContext* immediate_context
 	const float circuit_height = stage_transform.position.y + 0.2f * stage_transform.scale.y - 0.85f;
 
 	const float circuit_thickness = (std::max)(player->get_scale().x * 3.0f, 1.0f);
-	const XMFLOAT4 circuit_color{ 0.05f, 1.0f, 0.16f, 1.0f };
+	const int chain_multiplier = get_recovery_chain_multiplier();
+	// A clear color ladder makes the current score state readable at a glance.
+	// x1 green -> x2 cyan -> x3 violet -> x4 magenta -> x5 gold/white.
+	XMFLOAT3 base_color{ 0.08f, 0.95f, 0.20f };
+	if (chain_multiplier == 2) base_color = { 0.05f, 0.90f, 1.00f };
+	else if (chain_multiplier == 3) base_color = { 0.48f, 0.20f, 1.00f };
+	else if (chain_multiplier == 4) base_color = { 1.00f, 0.08f, 0.72f };
+	else if (chain_multiplier >= 5) base_color = { 1.00f, 0.82f, 0.10f };
+	const float chain_energy = (std::min)(recovery_chain / 15.0f, 1.0f);
+	const float breathing = 0.82f + 0.18f * std::sinf(total_time * (5.0f + chain_energy * 8.0f));
+	const XMFLOAT4 circuit_color{
+		base_color.x * breathing,
+		base_color.y * breathing,
+		base_color.z * breathing,
+		1.0f };
 	for (const CircuitSegment& segment : player_circuit_segments)
 	{
 		const float dx = segment.end.x - segment.start.x;
@@ -582,6 +649,29 @@ void PacmanGameScene::draw_player_circuit(ID3D11DeviceContext* immediate_context
 			XMMatrixRotationY(angle_y) *
 			XMMatrixTranslation(center.x, center.y, center.z));
 		debug_cube->render(immediate_context, world, circuit_color);
+	}
+
+	// A small bright packet travels across the newest continuous circuit segment.
+	// It is deliberately drawn only while chaining, so active movement feels alive.
+	if (recovery_chain > 0 && !player_circuit_segments.empty())
+	{
+		const CircuitSegment& newest = player_circuit_segments.back();
+		const float dx = newest.end.x - newest.start.x;
+		const float dz = newest.end.z - newest.start.z;
+		const float length = std::sqrt(dx * dx + dz * dz);
+		if (length > 0.001f)
+		{
+			const float travel = std::fmod(total_time * (4.0f + chain_multiplier), 1.0f);
+			const XMFLOAT3 pulse_position{
+				newest.start.x + dx * travel,
+				circuit_height + circuit_thickness * 0.20f,
+				newest.start.z + dz * travel };
+			XMFLOAT4X4 pulse_world{};
+			XMStoreFloat4x4(&pulse_world,
+				XMMatrixScaling(circuit_thickness * 1.35f, circuit_thickness * 0.45f, circuit_thickness * 1.35f) *
+				XMMatrixTranslation(pulse_position.x, pulse_position.y, pulse_position.z));
+			debug_cube->render(immediate_context, pulse_world, XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+		}
 	}
 }
 
@@ -642,6 +732,26 @@ void PacmanGameScene::draw_gameplay_hud(ID3D11DeviceContext* immediate_context)
 	text(value, 22.0f, 45.0f, 14.0f, 1.0f, 0.84f, 0.25f);
 	std::snprintf(value, sizeof(value), "HI %06d", session_high_score);
 	text(value, 22.0f, 68.0f, 12.0f, 0.72f, 0.85f, 1.0f);
+	if (recovery_chain > 0)
+	{
+		std::snprintf(value, sizeof(value), "CHAIN %02d  x%d", recovery_chain, get_recovery_chain_multiplier());
+		text(value, 22.0f, 90.0f, 13.0f, 0.25f, 1.0f, 0.72f);
+	}
+	if (near_miss_popup_time > 0.0f)
+	{
+		std::snprintf(value, sizeof(value), "NEAR MISS +%d", near_miss_popup_score);
+		const float rise = (0.80f - near_miss_popup_time) * 38.0f;
+		text(value, 510.0f, 190.0f - rise, 18.0f, 1.0f, 0.82f, 0.25f);
+	}
+	if (system_alert_level > 0)
+	{
+		const bool final_circuit = system_alert_level >= 2;
+		text(final_circuit ? "FINAL CIRCUIT" : "SYSTEM ALERT", 530.0f, 24.0f, 16.0f,
+			final_circuit ? 1.0f : 1.0f, final_circuit ? 0.22f : 0.72f, final_circuit ? 0.72f : 0.12f);
+		if (system_alert_popup_time > 0.0f)
+			text(final_circuit ? "FINAL CIRCUIT ACTIVE" : "SYSTEM ALERT ACTIVE", 474.0f, 126.0f, 18.0f,
+				1.0f, final_circuit ? 0.22f : 0.72f, final_circuit ? 0.72f : 0.12f);
+	}
 
 	const int total = static_cast<int>(circuit_cells.size());
 	std::snprintf(value, sizeof(value), "CIRCUIT %02d / %02d", get_recovered_circuit_cell_count(), total);
@@ -680,6 +790,10 @@ void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
 	ImGui::Text("LIVES: %d / 3", lives);
 	ImGui::Text("CIRCUIT: %d / %d", get_recovered_circuit_cell_count(), static_cast<int>(circuit_cells.size()));
 	ImGui::Text("SCORE: %d   HI: %d", score, session_high_score);
+	ImGui::Text("CHAIN: %d  x%d  (%.1fs)", recovery_chain, get_recovery_chain_multiplier(), recovery_chain_time_remaining);
+	ImGui::Text("SYSTEM ALERT: %s", system_alert_level == 2 ? "FINAL CIRCUIT" : system_alert_level == 1 ? "ACTIVE" : "NORMAL");
+	ImGui::DragFloat("Near miss radius", &near_miss_radius, 0.05f, 1.0f, 5.0f);
+	ImGui::DragFloat("Near miss cooldown", &near_miss_cooldown_seconds, 0.05f, 0.2f, 5.0f);
 	ImGui::DragFloat("Enemy chase range", &enemy_chase_range, 0.1f, 0.0f, 40.0f);
 	ImGui::DragFloat("Orange intercept distance", &enemy_intercept_distance, 0.1f, 0.0f, 20.0f);
 	ImGui::Text("AUTO MOVE  A: left  D: right  S: reverse");
@@ -891,9 +1005,35 @@ bool PacmanGameScene::is_player_touching_enemy() const
 	return touches(*enemy) || touches(*enemy_second);
 }
 
+bool PacmanGameScene::award_near_miss_if_needed(const PacmanPlayer& other, float& cooldown)
+{
+	if (cooldown > 0.0f) return false;
+	const XMFLOAT3& player_position = player->get_position();
+	const XMFLOAT3& other_position = other.get_position();
+	const float dx = player_position.x - other_position.x;
+	const float dz = player_position.z - other_position.z;
+	const float distance_squared = dx * dx + dz * dz;
+	if (distance_squared > near_miss_radius * near_miss_radius) return false;
+
+	// The inner AABB is an actual hit, not a close pass, so it never earns points.
+	const float player_half_size = (std::max)(player->get_scale().x, player->get_scale().z);
+	const float other_half_size = (std::max)(other.get_scale().x, other.get_scale().z);
+	const float hit_limit = player_half_size + other_half_size;
+	if (std::fabs(dx) < hit_limit && std::fabs(dz) < hit_limit) return false;
+
+	near_miss_popup_score = 500 * get_recovery_chain_multiplier();
+	score += near_miss_popup_score;
+	near_miss_popup_time = 0.80f;
+	cooldown = near_miss_cooldown_seconds;
+	return true;
+}
+
 void PacmanGameScene::begin_respawn_or_game_over()
 {
 	--lives;
+	recovery_chain = 0;
+	recovery_chain_time_remaining = 0.0f;
+	near_miss_popup_time = 0.0f;
 	state_timer = 0.0f;
 	player_visible = false;
 	if (lives > 0)

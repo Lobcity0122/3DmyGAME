@@ -38,9 +38,9 @@ private:
 	float currentCameraAngleY = 0.0f;
 
 	// 迷路全体を見失わない、やや高めの斜め見下ろし追従カメラ。
-	float baseRange = 8.0f;
-	float baseHeight = 4.5f;
-	float focusHeight = 0.5f;
+	float baseRange = 7.0f;
+	float baseHeight = 6.5f;
+	float focusHeight = 0.0f;
 
 	float baseFov = 60.0f;
 
