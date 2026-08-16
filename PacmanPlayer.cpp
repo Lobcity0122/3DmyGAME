@@ -1,9 +1,10 @@
-#define NOMINMAX
+ï»¿#define NOMINMAX
 #include "PacmanPlayer.h"
 #include "Collision.h"
 #include <windows.h>
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 using namespace DirectX;
 
@@ -14,6 +15,7 @@ void PacmanPlayer::initialize()
 	move_direction = { 0.0f, 1.0f };
 	requested_direction = move_direction;
 	hover_time = 0.0f;
+	ai_decision_cooldown = 0.0f;
 	rebuild_collision_aabb();
 	update_transform();
 }
@@ -22,6 +24,13 @@ void PacmanPlayer::set_scale(const XMFLOAT3& value)
 {
 	scale = value;
 	rebuild_collision_aabb();
+}
+
+void PacmanPlayer::set_position(const XMFLOAT3& value)
+{
+	position = value;
+	// Warp / respawn positions need to be visible in the same frame.
+	update_transform();
 }
 
 void PacmanPlayer::set_collision_model_bounds(const XMFLOAT3& minimum, const XMFLOAT3& maximum)
@@ -33,7 +42,7 @@ void PacmanPlayer::set_collision_model_bounds(const XMFLOAT3& minimum, const XMF
 
 void PacmanPlayer::rebuild_collision_aabb()
 {
-	// •`‰æƒ‚ƒfƒ‹‚Ìƒ[ƒJƒ‹Å‘å”ÍˆÍ‚ğAŒ»İ‚ÌƒXƒP[ƒ‹‚Åƒ[ƒ‹ƒh”¼ƒTƒCƒY‚Ö•ÏŠ·‚·‚éB
+	// æç”»ãƒ¢ãƒ‡ãƒ«ã®ãƒ­ãƒ¼ã‚«ãƒ«æœ€å¤§ç¯„å›²ã‚’ã€ç¾åœ¨ã®ã‚¹ã‚±ãƒ¼ãƒ«ã§ãƒ¯ãƒ¼ãƒ«ãƒ‰åŠã‚µã‚¤ã‚ºã¸å¤‰æ›ã™ã‚‹ã€‚
 	const float half_x = (std::max)(std::fabs(collision_model_min.x), std::fabs(collision_model_max.x)) * std::fabs(scale.x);
 	const float half_z = (std::max)(std::fabs(collision_model_min.z), std::fabs(collision_model_max.z)) * std::fabs(scale.z);
 	collision_half_extent = { half_x, half_z };
@@ -41,21 +50,21 @@ void PacmanPlayer::rebuild_collision_aabb()
 
 void PacmanPlayer::read_direction_input()
 {
-	// í‚É‘Oi‚·‚éƒpƒbƒNƒ}ƒ“Œ^‚Ì‘€ìB
-	// W‚Íg‚í‚¸AA/D‚Å¶‰E‚Ì’Ê˜H‚Ö‹È‚ª‚èAS‚Å”½‘Î•ûŒü‚ÖÜ‚è•Ô‚·B
+	// å¸¸ã«å‰é€²ã™ã‚‹ãƒ‘ãƒƒã‚¯ãƒãƒ³å‹ã®æ“ä½œã€‚
+	// Wã¯ä½¿ã‚ãšã€A/Dã§å·¦å³ã®é€šè·¯ã¸æ›²ãŒã‚Šã€Sã§åå¯¾æ–¹å‘ã¸æŠ˜ã‚Šè¿”ã™ã€‚
 	const bool left_pressed = ((GetAsyncKeyState('A') & 0x8000) || (GetAsyncKeyState(VK_LEFT) & 0x8000)) != 0;
 	const bool right_pressed = ((GetAsyncKeyState('D') & 0x8000) || (GetAsyncKeyState(VK_RIGHT) & 0x8000)) != 0;
 	const bool reverse_pressed = ((GetAsyncKeyState('S') & 0x8000) || (GetAsyncKeyState(VK_DOWN) & 0x8000)) != 0;
 
-	// ƒL[‚ğ‰Ÿ‚µ‚½uŠÔ‚¾‚¯•ûŒü‚ğ•Ï‚¦‚éB‰Ÿ‚µ‚Á‚Ï‚È‚µ‚Å–ˆƒtƒŒ[ƒ€‰ñ“]‚µ‚È‚¢‚æ‚¤‚É‚·‚éB
+	// ã‚­ãƒ¼ã‚’æŠ¼ã—ãŸç¬é–“ã ã‘æ–¹å‘ã‚’å¤‰ãˆã‚‹ã€‚æŠ¼ã—ã£ã±ãªã—ã§æ¯ãƒ•ãƒ¬ãƒ¼ãƒ å›è»¢ã—ãªã„ã‚ˆã†ã«ã™ã‚‹ã€‚
 	if (left_pressed && !previous_left_pressed)
 	{
-		// ¶‰ñ“]: (x, z) -> (-z, x)
+		// å·¦å›è»¢: (x, z) -> (-z, x)
 		requested_direction = { -move_direction.y, move_direction.x };
 	}
 	if (right_pressed && !previous_right_pressed)
 	{
-		// ‰E‰ñ“]: (x, z) -> (z, -x)
+		// å³å›è»¢: (x, z) -> (z, -x)
 		requested_direction = { move_direction.y, -move_direction.x };
 	}
 	if (reverse_pressed && !previous_reverse_pressed)
@@ -73,7 +82,7 @@ void PacmanPlayer::update(float elapsed_time, const static_mesh* collision_mesh,
 	hover_time += elapsed_time;
 	read_direction_input();
 
-	// ”½“]‚Í‚¢‚Â‚Å‚à‘¦‚És‚¦‚éB¶‰Eù‰ñ‚ÍŒğ·“_‚Ü‚Å—\–ñ‚µ‚Ä‚¨‚­B
+	// åè»¢ã¯ã„ã¤ã§ã‚‚å³æ™‚ã«è¡Œãˆã‚‹ã€‚å·¦å³æ—‹å›ã¯äº¤å·®ç‚¹ã¾ã§äºˆç´„ã—ã¦ãŠãã€‚
 	if (requested_direction.x != move_direction.x || requested_direction.y != move_direction.y)
 	{
 		const float direction_dot = move_direction.x * requested_direction.x +
@@ -88,7 +97,7 @@ void PacmanPlayer::update(float elapsed_time, const static_mesh* collision_mesh,
 			if (Collision::FindTurnSnapPosition2D(position, requested_direction, collision_half_extent,
 				collision_world, collision_mesh, turn_snap_distance, snapped_position))
 			{
-				// Œğ·“_‚Ì’†Sü‚Ö‚¾‚¯•â³‚µ‚Ä‚©‚çù‰ñ‚·‚éB‘‰Ÿ‚µ‚Å‚à•Ç‚É‚Í“ü‚ç‚È‚¢B
+				// äº¤å·®ç‚¹ã®ä¸­å¿ƒç·šã¸ã ã‘è£œæ­£ã—ã¦ã‹ã‚‰æ—‹å›ã™ã‚‹ã€‚æ—©æŠ¼ã—ã§ã‚‚å£ã«ã¯å…¥ã‚‰ãªã„ã€‚
 				position = snapped_position;
 				move_direction = requested_direction;
 			}
@@ -102,8 +111,8 @@ void PacmanPlayer::update(float elapsed_time, const static_mesh* collision_mesh,
 	next_position.x += move_direction.x * move_speed * elapsed_time;
 	next_position.z += move_direction.y * move_speed * elapsed_time;
 
-	// ©‹@AABB‚ğ•ÇAABB‚ÖƒXƒC[ƒv‚·‚éB•Ç‘¤‚ğ©‹@‚Ì”¼ƒTƒCƒY‚Ô‚ñ–c‚ç‚Ü‚¹‚Ä
-	// ’†S‚ÌˆÚ“®ü•ª‚ÆŒğ·‚³‚¹‚é‚½‚ßAƒLƒ…[ƒu‘S‘Ì‚ª•Ç‚É“ü‚ç‚È‚¢B
+	// è‡ªæ©ŸAABBã‚’å£AABBã¸ã‚¹ã‚¤ãƒ¼ãƒ—ã™ã‚‹ã€‚å£å´ã‚’è‡ªæ©Ÿã®åŠã‚µã‚¤ã‚ºã¶ã‚“è†¨ã‚‰ã¾ã›ã¦
+	// ä¸­å¿ƒã®ç§»å‹•ç·šåˆ†ã¨äº¤å·®ã•ã›ã‚‹ãŸã‚ã€ã‚­ãƒ¥ãƒ¼ãƒ–å…¨ä½“ãŒå£ã«å…¥ã‚‰ãªã„ã€‚
 	const float movement_x = next_position.x - position.x;
 	const float movement_z = next_position.z - position.z;
 	float allowed_fraction = 1.0f;
@@ -123,12 +132,81 @@ void PacmanPlayer::update_enemy(float elapsed_time, const static_mesh* collision
 	const XMFLOAT4X4& collision_world, const XMFLOAT3* target_position, float chase_range)
 {
 	hover_time += elapsed_time;
+	ai_decision_cooldown = (std::max)(ai_decision_cooldown - elapsed_time, 0.0f);
 	const bool has_target = target_position != nullptr && chase_range > 0.0f;
 	const float target_dx = has_target ? target_position->x - position.x : 0.0f;
 	const float target_dz = has_target ? target_position->z - position.z : 0.0f;
 	const bool is_chasing = has_target &&
 		(target_dx * target_dx + target_dz * target_dz <= chase_range * chase_range);
 	const float step = move_speed * elapsed_time;
+
+	// Select a direction at a junction or a dead end. At a normal junction the
+	// reverse direction is excluded. It becomes available only when the forward
+	// route is blocked, preventing the enemy from indecisive backtracking.
+	const auto choose_direction = [&](bool allow_reverse, bool require_side_turn)
+	{
+		struct Candidate
+		{
+			XMFLOAT2 direction;
+			XMFLOAT3 snapped_position;
+			float distance_squared;
+			bool side_turn;
+		};
+		std::vector<Candidate> candidates;
+		const XMFLOAT2 directions[] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+		const float probe_distance = (std::max)(step, 0.30f);
+		for (const XMFLOAT2& candidate_direction : directions)
+		{
+			const float dot = move_direction.x * candidate_direction.x + move_direction.y * candidate_direction.y;
+			if (!allow_reverse && dot < -0.5f) continue;
+
+			XMFLOAT3 candidate_position = position;
+			const bool side_turn = std::fabs(dot) < 0.5f;
+			if (side_turn && collision_mesh != nullptr)
+			{
+				if (!Collision::FindTurnSnapPosition2D(position, candidate_direction, collision_half_extent,
+					collision_world, collision_mesh, turn_snap_distance, candidate_position))
+					continue;
+			}
+
+			XMFLOAT3 test_end = candidate_position;
+			test_end.x += candidate_direction.x * probe_distance;
+			test_end.z += candidate_direction.y * probe_distance;
+			float test_fraction = 1.0f;
+			XMFLOAT3 test_normal{};
+			if (collision_mesh != nullptr && Collision::SweepAABB2D(candidate_position, test_end,
+				collision_half_extent, collision_world, collision_mesh, test_fraction, test_normal))
+				continue;
+
+			const float dx = has_target ? test_end.x - target_position->x : 0.0f;
+			const float dz = has_target ? test_end.z - target_position->z : 0.0f;
+			candidates.push_back({ candidate_direction, candidate_position, dx * dx + dz * dz, side_turn });
+		}
+
+		bool has_side_turn = false;
+		for (const Candidate& candidate : candidates) has_side_turn |= candidate.side_turn;
+		if (candidates.empty() || (require_side_turn && !has_side_turn)) return false;
+
+		ai_random_state ^= ai_random_state << 13;
+		ai_random_state ^= ai_random_state >> 17;
+		ai_random_state ^= ai_random_state << 5;
+		size_t chosen_index = ai_random_state % candidates.size();
+		if (is_chasing)
+		{
+			for (size_t index = 1; index < candidates.size(); ++index)
+				if (candidates[index].distance_squared < candidates[chosen_index].distance_squared)
+					chosen_index = index;
+		}
+		position = candidates[chosen_index].snapped_position;
+		move_direction = candidates[chosen_index].direction;
+		return true;
+	};
+
+	// A valid perpendicular route means this is a real junction. Make a choice
+	// before reaching the wall so patrols cover the maze instead of only U-turning.
+	if (ai_decision_cooldown <= 0.0f && choose_direction(false, true))
+		ai_decision_cooldown = 0.20f;
+
 	XMFLOAT3 next_position = position;
 	next_position.x += move_direction.x * step;
 	next_position.z += move_direction.y * step;
@@ -142,56 +220,8 @@ void PacmanPlayer::update_enemy(float elapsed_time, const static_mesh* collision
 	position.z += (next_position.z - position.z) * allowed_fraction;
 	if (hit_wall)
 	{
-		// xorshift: <random>‚ÉˆË‘¶‚¹‚¸A“G‚²‚Æ‚ÉˆÙ‚È‚é‡”Ô‚Å4•ûŒü‚ğ‚·B
-		ai_random_state ^= ai_random_state << 13;
-		ai_random_state ^= ai_random_state >> 17;
-		ai_random_state ^= ai_random_state << 5;
-		const XMFLOAT2 directions[] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
-		const unsigned int first = ai_random_state % 4;
-		bool found_path = false;
-		float best_distance_squared = 0.0f;
-		XMFLOAT3 chosen_position{};
-		XMFLOAT2 chosen_direction{};
-		for (unsigned int offset = 0; offset < 4; ++offset)
-		{
-			const XMFLOAT2 candidate_direction = directions[(first + offset) % 4];
-			XMFLOAT3 candidate_position = position;
-			// ’¼Šp•ûŒü‚Ö‹È‚ª‚éê‡‚¾‚¯AƒvƒŒƒCƒ„[‚Æ“¯‚¶Œğ·“_’†S•â³‚ğ—˜—p‚·‚éB
-			const float dot = move_direction.x * candidate_direction.x + move_direction.y * candidate_direction.y;
-			if (std::fabs(dot) < 0.5f && collision_mesh != nullptr)
-			{
-				if (!Collision::FindTurnSnapPosition2D(position, candidate_direction, collision_half_extent,
-					collision_world, collision_mesh, turn_snap_distance, candidate_position))
-					continue;
-			}
-			XMFLOAT3 test_end = candidate_position;
-			test_end.x += candidate_direction.x * step;
-			test_end.z += candidate_direction.y * step;
-			float test_fraction = 1.0f;
-			XMFLOAT3 test_normal{};
-			if (collision_mesh == nullptr || !Collision::SweepAABB2D(candidate_position, test_end,
-				collision_half_extent, collision_world, collision_mesh, test_fraction, test_normal))
-			{
-				// Patrol preserves the randomized first valid path. Chase mode instead
-				// evaluates every valid direction and chooses the closest next position.
-				const float dx = has_target ? test_end.x - target_position->x : 0.0f;
-				const float dz = has_target ? test_end.z - target_position->z : 0.0f;
-				const float distance_squared = dx * dx + dz * dz;
-				if (!found_path || !is_chasing || distance_squared < best_distance_squared)
-				{
-					found_path = true;
-					best_distance_squared = distance_squared;
-					chosen_position = candidate_position;
-					chosen_direction = candidate_direction;
-					if (!is_chasing) break;
-				}
-			}
-		}
-		if (found_path)
-		{
-			position = chosen_position;
-			move_direction = chosen_direction;
-		}
+		choose_direction(true, false);
+		ai_decision_cooldown = 0.20f;
 	}
 	angle.y = std::atan2(move_direction.x, move_direction.y);
 	update_transform();

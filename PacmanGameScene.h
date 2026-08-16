@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "Scene.h"
 #include "PacmanPlayer.h"
@@ -6,15 +6,16 @@
 #include "static_mesh.h"
 #include "skinned_mesh.h"
 #include "geometric_primitive.h"
+#include "sprite.h"
 #include <memory>
 #include <vector>
 #include <wrl.h>
 
-// ‚±‚ÌƒNƒ‰ƒX‚Í3DƒpƒbƒNƒ}ƒ“ƒ‰ƒCƒN‚ÈƒQ[ƒ€ó‘Ô‚¾‚¯‚ğŠÇ—‚·‚éB
+// ã“ã®ã‚¯ãƒ©ã‚¹ã¯3Dãƒ‘ãƒƒã‚¯ãƒãƒ³ãƒ©ã‚¤ã‚¯ãªã‚²ãƒ¼ãƒ çŠ¶æ…‹ã ã‘ã‚’ç®¡ç†ã™ã‚‹ã€‚
 class PacmanGameScene final : public Scene
 {
 public:
-	// false ‚Í’ÊíƒvƒŒƒCAtrue ‚Íƒ^ƒCƒgƒ‹—p‚Ì–³‘€ìƒfƒ‚B
+	// false ã¯é€šå¸¸ãƒ—ãƒ¬ã‚¤ã€true ã¯ã‚¿ã‚¤ãƒˆãƒ«ç”¨ã®ç„¡æ“ä½œãƒ‡ãƒ¢ã€‚
 	explicit PacmanGameScene(bool attract_mode = false) : attract_mode(attract_mode) {}
 	bool initialize(ID3D11Device* device) override;
 	void update(float elapsed_time) override;
@@ -24,22 +25,23 @@ public:
 	SceneType get_next_scene() const override { return next_scene_type; }
 
 private:
-	// PacmanPlayer‚ªƒOƒŠƒbƒhˆÚ“®‚ğˆµ‚¢ACameraController‚ª’Ç]ƒrƒ…[‚ğì‚éB
+	// PacmanPlayerãŒã‚°ãƒªãƒƒãƒ‰ç§»å‹•ã‚’æ‰±ã„ã€CameraControllerãŒè¿½å¾“ãƒ“ãƒ¥ãƒ¼ã‚’ä½œã‚‹ã€‚
 	std::unique_ptr<PacmanPlayer> player;
 	std::unique_ptr<PacmanPlayer> enemy;
 	std::unique_ptr<PacmanPlayer> enemy_second;
 	std::unique_ptr<CameraController> camera_controller;
+	std::unique_ptr<sprite> hud_font;
 
-	// 2‚Â‚Ì“Æ—§‚µ‚½ƒ‚ƒfƒ‹“Ç‚İ‚İ—pƒpƒXB‚±‚±‚É•À‚×‚Ä‚¨‚­‚±‚Æ‚ÅAˆá‚¢‚âg‚¢•û‚ªˆê–Ú‚Å”äŠr‚Å‚«‚éB
-	std::unique_ptr<static_mesh> player_mesh;       // OBJiƒvƒŒƒCƒ„[j
-	std::unique_ptr<static_mesh> stage_mesh;        // OBJiÃ“IƒƒbƒVƒ…FƒR[ƒXj
-	std::unique_ptr<static_mesh> collision_mesh;    // •`‰æ‚µ‚È‚¢•Çê—pOBJi“–‚½‚è”»’èj
-	std::unique_ptr<static_mesh> circuit_mesh;      // •`‰æ‚µ‚È‚¢’Ê˜Hê—pOBJi‰ñ˜H•œ‹Œ”»’èj
-	std::unique_ptr<static_mesh> background_mesh;  // OBJi”wŒi—p‚ÌÃ“IƒƒbƒVƒ…j
-	std::unique_ptr<cube> debug_cube;               // ƒOƒŠƒbƒh‚Æ²‚Ìü‚ğ•`‚­‚½‚ß‚ÌŠÈˆÕƒvƒŠƒ~ƒeƒBƒu
+	// 2ã¤ã®ç‹¬ç«‹ã—ãŸãƒ¢ãƒ‡ãƒ«èª­ã¿è¾¼ã¿ç”¨ãƒ‘ã‚¹ã€‚ã“ã“ã«ä¸¦ã¹ã¦ãŠãã“ã¨ã§ã€é•ã„ã‚„ä½¿ã„æ–¹ãŒä¸€ç›®ã§æ¯”è¼ƒã§ãã‚‹ã€‚
+	std::unique_ptr<static_mesh> player_mesh;       // OBJï¼ˆãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ï¼‰
+	std::unique_ptr<static_mesh> stage_mesh;        // OBJï¼ˆé™çš„ãƒ¡ãƒƒã‚·ãƒ¥ï¼šã‚³ãƒ¼ã‚¹ï¼‰
+	std::unique_ptr<static_mesh> collision_mesh;    // æç”»ã—ãªã„å£å°‚ç”¨OBJï¼ˆå½“ãŸã‚Šåˆ¤å®šï¼‰
+	std::unique_ptr<static_mesh> circuit_mesh;      // æç”»ã—ãªã„é€šè·¯å°‚ç”¨OBJï¼ˆå›è·¯å¾©æ—§åˆ¤å®šï¼‰
+	std::unique_ptr<static_mesh> background_mesh;  // OBJï¼ˆèƒŒæ™¯ç”¨ã®é™çš„ãƒ¡ãƒƒã‚·ãƒ¥ï¼‰
+	std::unique_ptr<cube> debug_cube;               // ã‚°ãƒªãƒƒãƒ‰ã¨è»¸ã®ç·šã‚’æããŸã‚ã®ç°¡æ˜“ãƒ—ãƒªãƒŸãƒ†ã‚£ãƒ–
 
-	// ƒVƒF[ƒ_[ƒŒƒWƒXƒ^ b1: ƒV[ƒ““à‚Ì‘Sƒ‚ƒfƒ‹‚Å‹¤—L‚³‚ê‚éƒf[ƒ^B
-	// ŠeƒƒbƒVƒ…‚Í“Æ©‚Ì b0 ƒoƒbƒtƒ@iƒ[ƒ‹ƒhs—ñ‚Æƒ}ƒeƒŠƒAƒ‹ƒJƒ‰[j‚ğì¬EXVB
+	// ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒ¬ã‚¸ã‚¹ã‚¿ b1: ã‚·ãƒ¼ãƒ³å†…ã®å…¨ãƒ¢ãƒ‡ãƒ«ã§å…±æœ‰ã•ã‚Œã‚‹ãƒ‡ãƒ¼ã‚¿ã€‚
+	// å„ãƒ¡ãƒƒã‚·ãƒ¥ã¯ç‹¬è‡ªã® b0 ãƒãƒƒãƒ•ã‚¡ï¼ˆãƒ¯ãƒ¼ãƒ«ãƒ‰è¡Œåˆ—ã¨ãƒãƒ†ãƒªã‚¢ãƒ«ã‚«ãƒ©ãƒ¼ï¼‰ã‚’ä½œæˆãƒ»æ›´æ–°ã€‚
 	struct SceneConstants
 	{
 		DirectX::XMFLOAT4X4 view_projection;
@@ -54,7 +56,7 @@ private:
 		DirectX::XMFLOAT4 post_process_settings;
 	};
 
-	// ƒV[ƒ““à‚ÌŒõŒ¹İ’èB‚±‚ê‚ğƒVƒF[ƒ_[‚É“n‚·B
+	// ã‚·ãƒ¼ãƒ³å†…ã®å…‰æºè¨­å®šã€‚ã“ã‚Œã‚’ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã«æ¸¡ã™ã€‚
 	struct LightSettings
 	{
 		DirectX::XMFLOAT3 direction{ -0.35f, -1.0f, 0.25f };
@@ -72,7 +74,7 @@ private:
 	};
 	LightSettings light_settings;
 
-	// Unity / Unreal ‚ÌSceneƒrƒ…[‚ğQl‚É‚µ‚½A•ÒW‚¾‚¯•\¦‚·‚é•â•ü‚Ìİ’èB
+	// Unity / Unreal ã®Sceneãƒ“ãƒ¥ãƒ¼ã‚’å‚è€ƒã«ã—ãŸã€ç·¨é›†æ™‚ã ã‘è¡¨ç¤ºã™ã‚‹è£œåŠ©ç·šã®è¨­å®šã€‚
 	struct EditorDebugSettings
 	{
 		bool enable_editor_camera = true;
@@ -87,8 +89,8 @@ private:
 	};
 	EditorDebugSettings editor_debug;
 
-	// Player ˆÈŠO‚ÌÃ“I‚ÈƒIƒuƒWƒFƒNƒg—p TransformB
-	// ‰ñ“]‚Í ImGui ‚Åˆµ‚¢‚â‚·‚¢u“xv‚Å•Û‚µA•`‰æ’¼‘O‚És—ñ‚Ö•ÏŠ·‚·‚éB
+	// Player ä»¥å¤–ã®é™çš„ãªã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆç”¨ Transformã€‚
+	// å›è»¢ã¯ ImGui ã§æ‰±ã„ã‚„ã™ã„ã€Œåº¦ã€ã§ä¿æŒã—ã€æç”»ç›´å‰ã«è¡Œåˆ—ã¸å¤‰æ›ã™ã‚‹ã€‚
 	struct ObjectTransform
 	{
 		DirectX::XMFLOAT3 position{ 0.0f, 0.0f, 0.0f };
@@ -104,7 +106,7 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shadow_shader_resource_view;
 	Microsoft::WRL::ComPtr<ID3D11SamplerState> shadow_sampler_state;
 	Microsoft::WRL::ComPtr<ID3D11RasterizerState> shadow_rasterizer_state;
-	// ƒJƒvƒZƒ‹”wŒi‚ğ“à‘¤‚©‚çŒ©‚é‚½‚ßA”w–Ê‚à•`‰æ‚·‚éê—pƒ‰ƒXƒ^ƒ‰ƒCƒUB
+	// ã‚«ãƒ—ã‚»ãƒ«èƒŒæ™¯ã‚’å†…å´ã‹ã‚‰è¦‹ã‚‹ãŸã‚ã€èƒŒé¢ã‚‚æç”»ã™ã‚‹å°‚ç”¨ãƒ©ã‚¹ã‚¿ãƒ©ã‚¤ã‚¶ã€‚
 	Microsoft::WRL::ComPtr<ID3D11RasterizerState> background_rasterizer_state;
 	Microsoft::WRL::ComPtr<ID3D11RasterizerState> collision_wireframe_rasterizer_state;
 	DirectX::XMFLOAT4X4 stage_world{};
@@ -117,24 +119,42 @@ private:
 	float enemy_chase_range = 12.0f;
 	// The orange interceptor aims this far ahead of the player's current direction.
 	float enemy_intercept_distance = 6.0f;
+	// Pac-Man-style tunnel. All coordinates are world-space after the stage transform.
+	// Measured from the player transform at each entrance: right X=10.983,
+	// left X=-11.296, Z=-0.003.
+	struct WarpTunnelSettings
+	{
+		bool enabled = true;
+		float center_z = -0.003f;
+		float half_width_z = 0.75f;
+		float left_trigger_x = -11.20f;
+		float right_trigger_x = 10.90f;
+		// Exits are intentionally inside each entrance trigger so an actor cannot
+		// immediately warp back during the following frame.
+		float exit_at_left_x = -10.95f;
+		float exit_at_right_x = 10.70f;
+	};
+	WarpTunnelSettings warp_tunnel;
 
-	// “GÚGŒã‚Ìˆ—‚ğA’ÊíƒvƒŒƒC‚©‚ç•ª—£‚µ‚Ä•ª‚©‚è‚â‚·‚­ŠÇ—‚·‚éB
+	// æ•µæ¥è§¦å¾Œã®å‡¦ç†ã‚’ã€é€šå¸¸ãƒ—ãƒ¬ã‚¤ã‹ã‚‰åˆ†é›¢ã—ã¦åˆ†ã‹ã‚Šã‚„ã™ãç®¡ç†ã™ã‚‹ã€‚
 	enum class GameState { Playing, Respawning, GameOverFade, GameClearFade };
 	GameState game_state = GameState::Playing;
 	int lives = 3;
 	float state_timer = 0.0f;
 	bool player_visible = true;
 	bool exit_requested = false;
-	// ƒfƒ‚‚Í–{•Ò‚Æ“¯ˆê‚ÌXVE•`‰æŒo˜H‚ğg‚¢AƒvƒŒƒCƒ„[‚Ì“ü—Í‚¾‚¯‚ğAI‚Ö·‚µ‘Ö‚¦‚éB
+	// ãƒ‡ãƒ¢ã¯æœ¬ç·¨ã¨åŒä¸€ã®æ›´æ–°ãƒ»æç”»çµŒè·¯ã‚’ä½¿ã„ã€ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®å…¥åŠ›ã ã‘ã‚’AIã¸å·®ã—æ›¿ãˆã‚‹ã€‚
 	bool attract_mode = false;
 	SceneType next_scene_type = SceneType::PACMAN;
 	bool previous_enter_pressed = false;
 	bool previous_escape_pressed = false;
+	bool show_development_debug = false;
+	bool previous_debug_toggle_pressed = false;
 	DirectX::XMFLOAT3 player_spawn_position{};
 	DirectX::XMFLOAT3 enemy_spawn_position{};
 	DirectX::XMFLOAT3 enemy_second_spawn_position{};
 
-	// Make TraxŒ^‚Ìu•œ‹ŒÏ‚İ‰ñ˜HvB“G‚Å‚Í‚È‚­©‹@‚ª’Ê‰ß‚µ‚½‹æŠÔ‚¾‚¯‚ğ•Û‚·‚éB
+	// Make Traxå‹ã®ã€Œå¾©æ—§æ¸ˆã¿å›è·¯ã€ã€‚æ•µã§ã¯ãªãè‡ªæ©ŸãŒé€šéã—ãŸåŒºé–“ã ã‘ã‚’ä¿æŒã™ã‚‹ã€‚
 	struct CircuitSegment
 	{
 		DirectX::XMFLOAT3 start;
@@ -148,11 +168,11 @@ private:
 		bool recovered = false;
 	};
 	std::vector<CircuitCell> circuit_cells;
-	// ImGui‚Å‘I‚ñ‚¾‰ğ‘œ“x‚ÍAŸƒtƒŒ[ƒ€‚ÌŠJn‚ÉGPUƒeƒNƒXƒ`ƒƒ‚Ö”½‰f‚·‚éB
+	// ImGuiã§é¸ã‚“ã è§£åƒåº¦ã¯ã€æ¬¡ãƒ•ãƒ¬ãƒ¼ãƒ ã®é–‹å§‹æ™‚ã«GPUãƒ†ã‚¯ã‚¹ãƒãƒ£ã¸åæ˜ ã™ã‚‹ã€‚
 	UINT shadow_map_size = 2048;
 	UINT requested_shadow_map_size = 2048;
 
-	// •`‰æŠÖ”‚Í–ˆƒtƒŒ[ƒ€“¯‚¶‡˜‚Å‚±‚ê‚ç‚ğŒÄ‚Ño‚·B
+	// æç”»é–¢æ•°ã¯æ¯ãƒ•ãƒ¬ãƒ¼ãƒ åŒã˜é †åºã§ã“ã‚Œã‚‰ã‚’å‘¼ã³å‡ºã™ã€‚
 	void update_scene_constants(ID3D11DeviceContext* immediate_context);
 	void render_shadow_map(ID3D11DeviceContext* immediate_context);
 	bool create_shadow_map(ID3D11Device* device, UINT size);
@@ -161,7 +181,9 @@ private:
 	void update_object_world_matrices();
 	void draw_models(ID3D11DeviceContext* immediate_context);
 	void draw_editor_helpers(ID3D11DeviceContext* immediate_context);
-	void draw_hud();
+	void draw_hud(ID3D11DeviceContext* immediate_context);
+	void draw_gameplay_hud(ID3D11DeviceContext* immediate_context);
+	void draw_attract_hud(ID3D11DeviceContext* immediate_context);
 	void record_player_circuit(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end);
 	void draw_player_circuit(ID3D11DeviceContext* immediate_context);
 	void build_circuit_cells();
@@ -172,4 +194,5 @@ private:
 	void begin_respawn_or_game_over();
 	void begin_game_clear();
 	void finish_to_result();
+	bool apply_warp_tunnel(PacmanPlayer& actor);
 };

@@ -1,7 +1,8 @@
-#include "PacmanGameScene.h"
+ï»¿#include "PacmanGameScene.h"
 #include <cmath>
 #include <algorithm>
 #include <cfloat>
+#include <cstdio>
 #include <windows.h>
 #ifdef USE_IMGUI
 #include "imgui/imgui.h"
@@ -19,11 +20,12 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	score = 0;
 	survival_bonus_timer = 0.0f;
 	next_scene_type = get_type();
-	// ƒƒjƒ…[‚ÅBOOT‚ð‰Ÿ‚µ‚½Enter‚ÍA‘JˆÚ’¼Œã‚É‚à‚Ü‚¾‰Ÿ‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ª‚ ‚éB
-	// Œ»Ý‚Ìó‘Ô‚ð‰Šú’l‚É‚µ‚Ä‚¨‚¯‚ÎA‚¢‚Á‚½‚ñƒL[‚ð—£‚µ‚Ä‚©‚çŽŸ‚É‰Ÿ‚·‚Ü‚Å
-	// ƒ^ƒCƒgƒ‹ƒfƒ‚‚ª–{•Ò‚ÖƒXƒLƒbƒv‚³‚ê‚È‚¢B
+	// ãƒ¡ãƒ‹ãƒ¥ãƒ¼ã§BOOTã‚’æŠ¼ã—ãŸEnterã¯ã€é·ç§»ç›´å¾Œã«ã‚‚ã¾ã æŠ¼ã•ã‚Œã¦ã„ã‚‹ã“ã¨ãŒã‚ã‚‹ã€‚
+	// ç¾åœ¨ã®çŠ¶æ…‹ã‚’åˆæœŸå€¤ã«ã—ã¦ãŠã‘ã°ã€ã„ã£ãŸã‚“ã‚­ãƒ¼ã‚’é›¢ã—ã¦ã‹ã‚‰æ¬¡ã«æŠ¼ã™ã¾ã§
+	// ã‚¿ã‚¤ãƒˆãƒ«ãƒ‡ãƒ¢ãŒæœ¬ç·¨ã¸ã‚¹ã‚­ãƒƒãƒ—ã•ã‚Œãªã„ã€‚
 	previous_enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
 	previous_escape_pressed = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
+	previous_debug_toggle_pressed = (GetAsyncKeyState(VK_F3) & 0x8000) != 0;
 	player_circuit_segments.clear();
 	circuit_cells.clear();
 
@@ -35,6 +37,7 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	enemy_second->initialize();
 	camera_controller = std::make_unique<CameraController>();
 	player_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
+	hud_font = std::make_unique<sprite>(device, L".\\resources\\fonts\\font0.png");
 
 	XMFLOAT3 player_model_min{}, player_model_max{};
 	player_mesh->get_bounding_box(player_model_min, player_model_max);
@@ -102,8 +105,8 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 
 void PacmanGameScene::update(float elapsed_time)
 {
-	// ƒAƒgƒ‰ƒNƒgƒ‚[ƒh‚ÍEnter‚Å–{•Ò‚ÖAEsc‚ÅƒQ[ƒ€‘I‘ð‰æ–Ê‚Ö–ß‚ê‚éB
-	// ‰Ÿ‰º‚µ‚½uŠÔ‚¾‚¯‚ðE‚¤‚½‚ßAƒV[ƒ“Ø‚è‘Ö‚¦‚ð˜A‘±”­¶‚³‚¹‚È‚¢B
+	// ã‚¢ãƒˆãƒ©ã‚¯ãƒˆãƒ¢ãƒ¼ãƒ‰ã¯Enterã§æœ¬ç·¨ã¸ã€Escã§ã‚²ãƒ¼ãƒ é¸æŠžç”»é¢ã¸æˆ»ã‚Œã‚‹ã€‚
+	// æŠ¼ä¸‹ã—ãŸçž¬é–“ã ã‘ã‚’æ‹¾ã†ãŸã‚ã€ã‚·ãƒ¼ãƒ³åˆ‡ã‚Šæ›¿ãˆã‚’é€£ç¶šç™ºç”Ÿã•ã›ãªã„ã€‚
 	if (attract_mode)
 	{
 		const bool enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
@@ -112,6 +115,13 @@ void PacmanGameScene::update(float elapsed_time)
 		if (escape_pressed && !previous_escape_pressed) next_scene_type = SceneType::MENU;
 		previous_enter_pressed = enter_pressed;
 		previous_escape_pressed = escape_pressed;
+	}
+	else
+	{
+		const bool debug_toggle_pressed = (GetAsyncKeyState(VK_F3) & 0x8000) != 0;
+		if (debug_toggle_pressed && !previous_debug_toggle_pressed)
+			show_development_debug = !show_development_debug;
+		previous_debug_toggle_pressed = debug_toggle_pressed;
 	}
 
 	if (editor_debug.rotate_background)
@@ -126,9 +136,9 @@ void PacmanGameScene::update(float elapsed_time)
 	mouse_input_allowed = !ImGui::GetIO().WantCaptureMouse;
 #endif
 	bool is_editing_camera = false;
-	if (game_state == GameState::GameClearFade)
+	if (game_state == GameState::GameClearFade || attract_mode)
 	{
-		// ƒNƒŠƒA‰‰o’†‚ÍƒtƒŠ[ƒJƒƒ‰‚æ‚è‚à‰‰o—pƒJƒƒ‰‚ð—Dæ‚·‚éB
+		// Clear and title-demo cameras are directed shots, not player/editor cameras.
 		camera_controller->stop_editor_camera();
 	}
 	else
@@ -142,13 +152,17 @@ void PacmanGameScene::update(float elapsed_time)
 		if (game_state == GameState::Playing)
 		{
 			const XMFLOAT3 player_previous_position = player->get_position();
-			// ƒfƒ‚’†‚Ì”’‚¢Ž©‹@‚à“G‚Æ“¯‚¶•Ç‰ñ”ðAI‚Å“®‚©‚·B
-			// •`‰æEƒRƒŠƒWƒ‡ƒ“EƒJƒƒ‰‚Í–{•Ò‚Æ‹¤’Ê‚È‚Ì‚ÅAé“`‰f‘œ‚ÆŽÀÛ‚ÌƒQ[ƒ€‚ªˆê’v‚·‚éB
+			// ãƒ‡ãƒ¢ä¸­ã®ç™½ã„è‡ªæ©Ÿã‚‚æ•µã¨åŒã˜å£å›žé¿AIã§å‹•ã‹ã™ã€‚
+			// æç”»ãƒ»ã‚³ãƒªã‚¸ãƒ§ãƒ³ãƒ»ã‚«ãƒ¡ãƒ©ã¯æœ¬ç·¨ã¨å…±é€šãªã®ã§ã€å®£ä¼æ˜ åƒã¨å®Ÿéš›ã®ã‚²ãƒ¼ãƒ ãŒä¸€è‡´ã™ã‚‹ã€‚
 			if (attract_mode)
 				player->update_enemy(elapsed_time, collision_mesh.get(), stage_world);
 			else
 				player->update(elapsed_time, collision_mesh.get(), stage_world);
-			record_player_circuit(player_previous_position, player->get_position());
+			// Do not draw one long green circuit segment across the whole level when
+			// the player uses a tunnel. The entry and exit are visually discontinuous.
+			const bool player_warped = apply_warp_tunnel(*player);
+			if (!player_warped)
+				record_player_circuit(player_previous_position, player->get_position());
 			if (!attract_mode)
 			{
 				// A corridor scores only once, no matter how often the player revisits it.
@@ -162,6 +176,7 @@ void PacmanGameScene::update(float elapsed_time)
 			}
 			enemy->update_enemy(elapsed_time, collision_mesh.get(), stage_world,
 				&player->get_position(), enemy_chase_range);
+			apply_warp_tunnel(*enemy);
 			// The orange drone does not target the player's current position. It targets
 			// a point ahead of the current heading, so it tends to cut off an escape route.
 			const XMFLOAT3& player_position = player->get_position();
@@ -172,6 +187,7 @@ void PacmanGameScene::update(float elapsed_time)
 				player_position.z + std::cosf(player_heading) * enemy_intercept_distance };
 			enemy_second->update_enemy(elapsed_time, collision_mesh.get(), stage_world,
 				&intercept_target, enemy_chase_range);
+			apply_warp_tunnel(*enemy_second);
 			if (!attract_mode)
 			{
 				if (is_player_touching_enemy()) begin_respawn_or_game_over();
@@ -201,9 +217,20 @@ void PacmanGameScene::update(float elapsed_time)
 		}
 		if (game_state == GameState::GameClearFade)
 		{
-			// ƒXƒe[ƒW‚ÌŒ´“_ƒMƒYƒ‚‚ð’†S‚ÉA–À˜H‘S‘Ì‚ðã‹ó‚©‚çŒ©‚¹‚éƒNƒŠƒA—pƒAƒ“ƒOƒ‹B
+			// ã‚¹ãƒ†ãƒ¼ã‚¸ã®åŽŸç‚¹ã‚®ã‚ºãƒ¢ã‚’ä¸­å¿ƒã«ã€è¿·è·¯å…¨ä½“ã‚’ä¸Šç©ºã‹ã‚‰è¦‹ã›ã‚‹ã‚¯ãƒªã‚¢ç”¨ã‚¢ãƒ³ã‚°ãƒ«ã€‚
 			camera_controller->update_cinematic_camera(elapsed_time,
 				{ 0.0f, 40.0f, -12.0f }, { 0.0f, 0.0f, 0.0f });
+		}
+		else if (attract_mode)
+		{
+			// Title demo: a high, slow orbit around the entire maze. This deliberately
+			// avoids the gameplay follow camera so the title reads as a separate scene.
+			const float orbit_angle = total_time * 0.1f;
+			const XMFLOAT3 title_eye{
+				std::sinf(orbit_angle) * 42.0f,
+				27.0f,
+				std::cosf(orbit_angle) * 42.0f };
+			camera_controller->update_cinematic_camera(elapsed_time, title_eye, { 0.0f, 0.0f, 0.0f });
 		}
 		else
 		{
@@ -292,7 +319,7 @@ void PacmanGameScene::render(ID3D11DeviceContext* immediate_context, float)
 	render_shadow_map(immediate_context);
 	update_scene_constants(immediate_context);
 	draw_models(immediate_context);
-	draw_hud();
+	draw_hud(immediate_context);
 }
 
 bool PacmanGameScene::create_shadow_map(ID3D11Device* device, UINT size)
@@ -449,7 +476,7 @@ void PacmanGameScene::record_player_circuit(const XMFLOAT3& start, const XMFLOAT
 	const float move_x = end.x - start.x;
 	const float move_z = end.z - start.z;
 	const float length_squared = move_x * move_x + move_z * move_z;
-	if (length_squared < 0.0004f) return; // å£ãEå‰ã§æ­¢ã¾ã£ãŸãƒ•ãƒ¬ãƒ¼ãƒ ã¯å›žè·¯ã«ã—ãªãE€E
+	if (length_squared < 0.0004f) return; // èž¢âˆšãƒ»èœ‘é˜ªã€’è±ï½¢ç¸ºï½¾ç¸ºï½£ç¸ºæº˜ãƒµç¹ï½¬ç¹ï½¼ç¹ï£°ç¸ºï½¯è—æ«ï½·ï½¯ç¸ºï½«ç¸ºåŠ±â†‘ç¸ºãƒ»Â€ãƒ»
 
 	CircuitSegment new_segment{ start, end };
 	if (!player_circuit_segments.empty())
@@ -600,24 +627,50 @@ void PacmanGameScene::draw_editor_helpers(ID3D11DeviceContext* immediate_context
 	}
 }
 
-void PacmanGameScene::draw_hud()
+void PacmanGameScene::draw_gameplay_hud(ID3D11DeviceContext* immediate_context)
 {
-#ifdef USE_IMGUI
-	if (attract_mode)
+	// Player-facing HUD: only information needed while moving through the maze.
+	// It does not depend on ImGui and can later be replaced by authored PNG panels.
+	const auto text = [this, immediate_context](const char* value, float x, float y, float size,
+		float r, float g, float b)
 	{
-		// ƒ^ƒCƒgƒ‹‚Ì•¶Žš‚ÍImGui‚Åd‚Ë‚é‚¾‚¯B”wŒã‚Ì3Dƒfƒ‚‚Í’Êí‚Ì–{•Ò•`‰æ‚»‚Ì‚à‚ÌB
-		ImGui::SetNextWindowPos(ImVec2(32, 28), ImGuiCond_Always);
-		ImGui::SetNextWindowBgAlpha(0.62f);
-		ImGui::Begin("CIRCUIT TRAX - ATTRACT MODE", nullptr,
-			ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove);
-		ImGui::TextColored(ImVec4(0.15f, 1.0f, 0.60f, 1.0f), "CIRCUIT TRAX");
-		ImGui::TextUnformatted("RESTORE THE LOST GRID");
-		ImGui::Separator();
-		ImGui::TextUnformatted("ATTRACT MODE / LIVE DEMO");
-		ImGui::TextUnformatted("[ENTER] START GAME     [ESC] BACK TO TERMINAL");
-		ImGui::End();
-		return;
-	}
+		hud_font->textout(immediate_context, value, x, y, size, size, r, g, b, 1.0f);
+	};
+	char value[64]{};
+	text("CIRCUIT TRAX", 22.0f, 18.0f, 17.0f, 0.20f, 1.0f, 0.65f);
+	std::snprintf(value, sizeof(value), "SCORE %06d", score);
+	text(value, 22.0f, 45.0f, 14.0f, 1.0f, 0.84f, 0.25f);
+	std::snprintf(value, sizeof(value), "HI %06d", session_high_score);
+	text(value, 22.0f, 68.0f, 12.0f, 0.72f, 0.85f, 1.0f);
+
+	const int total = static_cast<int>(circuit_cells.size());
+	std::snprintf(value, sizeof(value), "CIRCUIT %02d / %02d", get_recovered_circuit_cell_count(), total);
+	text(value, 990.0f, 22.0f, 14.0f, 0.20f, 1.0f, 0.65f);
+	std::snprintf(value, sizeof(value), "LIVES %d / 3", lives);
+	text(value, 1060.0f, 48.0f, 14.0f, 1.0f, 0.36f, 0.40f);
+}
+
+void PacmanGameScene::draw_attract_hud(ID3D11DeviceContext* immediate_context)
+{
+	const auto text = [this, immediate_context](const char* value, float x, float y, float size,
+		float r, float g, float b)
+	{
+		hud_font->textout(immediate_context, value, x, y, size, size, r, g, b, 1.0f);
+	};
+	text("CIRCUIT TRAX", 32.0f, 26.0f, 28.0f, 0.20f, 1.0f, 0.65f);
+	text("RESTORE THE LOST GRID", 34.0f, 64.0f, 14.0f, 0.78f, 0.90f, 1.0f);
+	text("ATTRACT MODE / LIVE DEMO", 34.0f, 90.0f, 12.0f, 0.40f, 0.88f, 0.82f);
+	if (std::fmod(total_time, 1.0f) < 0.72f)
+		text("[ENTER] START GAME     [ESC] TERMINAL", 34.0f, 650.0f, 15.0f, 0.20f, 1.0f, 0.65f);
+}
+
+void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
+{
+	if (attract_mode) draw_attract_hud(immediate_context);
+	else draw_gameplay_hud(immediate_context);
+#ifdef USE_IMGUI
+	if (show_development_debug && !attract_mode)
+	{
 
 	ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowSize(ImVec2(300, 160), ImGuiCond_FirstUseEver);
@@ -635,7 +688,7 @@ void PacmanGameScene::draw_hud()
 	ImGui::Text("TIME: %02d:%05.2f", minutes, seconds);
 	if (game_state == GameState::Playing && ImGui::Button("DEBUG: Clear circuit now"))
 	{
-		// ƒ{ƒ^ƒ“‚Å‚à’ÊíƒNƒŠƒA‚Æ“¯‚¶ó‘Ô‘JˆÚ‚Ö“ü‚é‚Ì‚ÅA‰‰o‚ÌŠm”F‚ÉŽg‚¦‚éB
+		// ãƒœã‚¿ãƒ³ã§ã‚‚é€šå¸¸ã‚¯ãƒªã‚¢ã¨åŒã˜çŠ¶æ…‹é·ç§»ã¸å…¥ã‚‹ã®ã§ã€æ¼”å‡ºã®ç¢ºèªã«ä½¿ãˆã‚‹ã€‚
 		for (CircuitCell& cell : circuit_cells) cell.recovered = true;
 		begin_game_clear();
 	}
@@ -755,6 +808,24 @@ void PacmanGameScene::draw_hud()
 		ImGui::DragFloat("Axis length", &editor_debug.axis_length, 0.1f, 0.1f, 20.0f);
 	}
 	ImGui::Checkbox("Show collision model (red wireframe)", &editor_debug.show_collision_model);
+	ImGui::Separator();
+	const auto edit_warp_tunnel = [](const char* label, WarpTunnelSettings& tunnel)
+	{
+		if (!ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen)) return;
+		ImGui::PushID(label);
+		ImGui::Checkbox("Enabled", &tunnel.enabled);
+		if (tunnel.enabled)
+		{
+			ImGui::DragFloat("Center Z", &tunnel.center_z, 0.05f);
+			ImGui::DragFloat("Half width Z", &tunnel.half_width_z, 0.05f, 0.10f, 5.0f);
+			ImGui::DragFloat("Left trigger X", &tunnel.left_trigger_x, 0.05f);
+			ImGui::DragFloat("Right trigger X", &tunnel.right_trigger_x, 0.05f);
+			ImGui::DragFloat("Exit at left X", &tunnel.exit_at_left_x, 0.05f, -30.0f, -0.10f);
+			ImGui::DragFloat("Exit at right X", &tunnel.exit_at_right_x, 0.05f, 0.10f, 30.0f);
+		}
+		ImGui::PopID();
+	};
+	edit_warp_tunnel("Warp tunnel", warp_tunnel);
 	ImGui::Checkbox("Rotate background", &editor_debug.rotate_background);
 	if (editor_debug.rotate_background)
 	{
@@ -763,6 +834,7 @@ void PacmanGameScene::draw_hud()
 	}
 	ImGui::TextWrapped("Grid: XZ plane at world origin. Gizmo: X red, Y green, Z blue.");
 	ImGui::End();
+	} // show_development_debug
 
 	if (game_state == GameState::GameOverFade || game_state == GameState::GameClearFade)
 	{
@@ -778,6 +850,28 @@ void PacmanGameScene::draw_hud()
 				is_clear ? "CLEAR!" : "GAME OVER");
 	}
 #endif
+}
+
+bool PacmanGameScene::apply_warp_tunnel(PacmanPlayer& actor)
+{
+	const auto apply_one = [&actor](const WarpTunnelSettings& tunnel)
+	{
+		if (!tunnel.enabled) return false;
+		const XMFLOAT3& current = actor.get_position();
+		if (std::fabs(current.z - tunnel.center_z) > tunnel.half_width_z)
+			return false;
+
+		XMFLOAT3 warped = current;
+		if (current.x >= tunnel.right_trigger_x)
+			warped.x = tunnel.exit_at_left_x;
+		else if (current.x <= tunnel.left_trigger_x)
+			warped.x = tunnel.exit_at_right_x;
+		else
+			return false;
+		actor.set_position(warped);
+		return true;
+	};
+	return apply_one(warp_tunnel);
 }
 
 bool PacmanGameScene::is_player_touching_enemy() const
@@ -843,6 +937,7 @@ void PacmanGameScene::finish_to_result()
 void PacmanGameScene::uninitialize()
 {
 
+	hud_font.reset();
 	player_mesh.reset();
 	stage_mesh.reset();
 	collision_mesh.reset();

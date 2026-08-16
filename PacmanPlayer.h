@@ -1,15 +1,15 @@
-#pragma once
+ï»¿#pragma once
 
 #include <DirectXMath.h>
 class static_mesh;
 
-// ƒpƒbƒNƒ}ƒ“Œ^‚ÌƒvƒŒƒCƒ„[B
-// ‰Á‘¬EƒhƒŠƒtƒg‚Å‚Í‚È‚­A–À˜H‚Ìƒ}ƒX–Ú‚É‰ˆ‚Á‚½ˆê’è‘¬“x‚Ì4•ûŒüˆÚ“®‚ğŠÇ—‚·‚éB
+// ãƒ‘ãƒƒã‚¯ãƒãƒ³å‹ã®ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã€‚
+// åŠ é€Ÿãƒ»ãƒ‰ãƒªãƒ•ãƒˆã§ã¯ãªãã€è¿·è·¯ã®ãƒã‚¹ç›®ã«æ²¿ã£ãŸä¸€å®šé€Ÿåº¦ã®4æ–¹å‘ç§»å‹•ã‚’ç®¡ç†ã™ã‚‹ã€‚
 class PacmanPlayer
 {
 public:
 	void initialize();
-	// collision_mesh ‚Í•`‰æ‚µ‚È‚¢•Çê—pOBJBw’è‚¾‚¯‘O•ûƒŒƒC‚Æ‚ÌŒğ·‚ğ’²‚×‚éB
+	// collision_mesh ã¯æç”»ã—ãªã„å£å°‚ç”¨OBJã€‚æŒ‡å®šæ™‚ã ã‘å‰æ–¹ãƒ¬ã‚¤ã¨ã®äº¤å·®ã‚’èª¿ã¹ã‚‹ã€‚
 	void update(float elapsed_time, const static_mesh* collision_mesh, const DirectX::XMFLOAT4X4& collision_world);
 	// Input-free movement for enemies. With a nearby target, the next valid path
 	// is chosen to reduce distance; otherwise it uses the usual random patrol.
@@ -18,7 +18,7 @@ public:
 		float chase_range = 0.0f);
 
 	const DirectX::XMFLOAT3& get_position() const { return position; }
-	void set_position(const DirectX::XMFLOAT3& value) { position = value; }
+	void set_position(const DirectX::XMFLOAT3& value);
 	const DirectX::XMFLOAT3& get_angle() const { return angle; }
 	void set_angle(const DirectX::XMFLOAT3& value) { angle = value; }
 	const DirectX::XMFLOAT3& get_scale() const { return scale; }
@@ -41,24 +41,26 @@ private:
 
 	DirectX::XMFLOAT3 position{ 4.0f, 0.5f, -4.0f };
 	DirectX::XMFLOAT3 angle{ 0.0f, 0.0f, 0.0f };
-	// cube.obj ‚Íˆê•Ó2B–À˜H‚Ì’Ê˜H•‚æ‚è—]—T‚ğ‚½‚¹‚½ˆê•Ó–ñ0.4‚É‚·‚éB
+	// cube.obj ã¯ä¸€è¾º2ã€‚è¿·è·¯ã®é€šè·¯å¹…ã‚ˆã‚Šä½™è£•ã‚’æŒãŸã›ãŸä¸€è¾ºç´„0.4ã«ã™ã‚‹ã€‚
 	DirectX::XMFLOAT3 scale{ 0.2f, 0.2f, 0.2f };
 	DirectX::XMFLOAT2 move_direction{ 0.0f, 1.0f };
 	DirectX::XMFLOAT2 requested_direction{ 0.0f, 1.0f };
 	DirectX::XMFLOAT4X4 transform{};
 	float move_speed = 4.5f;
-	// Ã“IƒƒbƒVƒ…‚Ì•`‰æs—ñ‚¾‚¯‚ğã‰º‚³‚¹‚éAŒy‚¢•‚—V‰‰oB
-	// position ‚Í•Ï‚¦‚È‚¢‚½‚ßAˆÚ“®E“–‚½‚è”»’è‚ÌÀ•W‚É‚Í‰e‹¿‚µ‚È‚¢B
+	// é™çš„ãƒ¡ãƒƒã‚·ãƒ¥ã®æç”»è¡Œåˆ—ã ã‘ã‚’ä¸Šä¸‹ã•ã›ã‚‹ã€è»½ã„æµ®éŠæ¼”å‡ºã€‚
+	// position ã¯å¤‰ãˆãªã„ãŸã‚ã€ç§»å‹•ãƒ»å½“ãŸã‚Šåˆ¤å®šã®åº§æ¨™ã«ã¯å½±éŸ¿ã—ãªã„ã€‚
 	float hover_time = 0.0f;
 	float hover_amplitude = 0.1f;
 	float hover_frequency = 0.5f; // cycles / second
 	DirectX::XMFLOAT3 collision_model_min{ -1.0f, -1.0f, -1.0f };
 	DirectX::XMFLOAT3 collision_model_max{ 1.0f, 1.0f, 1.0f };
 	DirectX::XMFLOAT2 collision_half_extent{ 0.2f, 0.2f };
-	// ‹È‚ª‚é“ü—Í‚ğó‚¯•t‚¯‚éA’Ê˜H’†S‚©‚ç‚ÌÅ‘å‚¸‚êB‘å‚«‚·‚¬‚é‚Æ•s©‘R‚È•â³‚É‚È‚éB
+	// æ›²ãŒã‚‹å…¥åŠ›ã‚’å—ã‘ä»˜ã‘ã‚‹ã€é€šè·¯ä¸­å¿ƒã‹ã‚‰ã®æœ€å¤§ãšã‚Œã€‚å¤§ãã™ãã‚‹ã¨ä¸è‡ªç„¶ãªè£œæ­£ã«ãªã‚‹ã€‚
 	float turn_snap_distance = 0.40f;
 	bool previous_left_pressed = false;
 	bool previous_right_pressed = false;
 	bool previous_reverse_pressed = false;
 	unsigned int ai_random_state = 0x9E3779B9u;
+	// Prevents an enemy from making several decisions while it is crossing one junction.
+	float ai_decision_cooldown = 0.0f;
 };
