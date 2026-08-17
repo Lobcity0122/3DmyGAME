@@ -27,6 +27,7 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	near_miss_popup_score = 0;
 	system_alert_level = 0;
 	system_alert_popup_time = 0.0f;
+	minimap_rotation_angle = 0.0f;
 	next_scene_type = get_type();
 	// メニューでBOOTを押したEnterは、遷移直後にもまだ押されていることがある。
 	// 現在の状態を初期値にしておけば、いったんキーを離してから次に押すまで
@@ -267,6 +268,7 @@ void PacmanGameScene::update(float elapsed_time)
 				player->get_move_speed(), false, 0.0f);
 		}
 	}
+	update_minimap_rotation(elapsed_time);
 	update_object_world_matrices();
 	total_time += elapsed_time;
 }
@@ -774,10 +776,116 @@ void PacmanGameScene::draw_attract_hud(ID3D11DeviceContext* immediate_context)
 		text("[ENTER] START GAME     [ESC] TERMINAL", 34.0f, 650.0f, 15.0f, 0.20f, 1.0f, 0.65f);
 }
 
+void PacmanGameScene::update_minimap_rotation(float elapsed_time)
+{
+	// Minimap screen Y uses -world Z, so player-follow rotation uses the opposite yaw.
+	const float target_angle = rotate_minimap_with_player ? -player->get_angle().y : 0.0f;
+	// atan2(sin, cos) chooses the shortest route, including across the -PI/PI seam.
+	const float delta = std::atan2(std::sinf(target_angle - minimap_rotation_angle),
+		std::cosf(target_angle - minimap_rotation_angle));
+	const float blend = (std::min)(minimap_rotation_follow_speed * elapsed_time, 1.0f);
+	minimap_rotation_angle += delta * blend;
+}
+
+void PacmanGameScene::draw_minimap()
+{
+#ifdef USE_IMGUI
+	if (!show_minimap || circuit_cells.empty() || attract_mode) return;
+
+	// This is intentionally derived from the same cells used for recovery logic.
+	// The tactical map therefore stays correct even if the visible stage mesh changes.
+	float min_x = FLT_MAX, max_x = -FLT_MAX, min_z = FLT_MAX, max_z = -FLT_MAX;
+	for (const CircuitCell& cell : circuit_cells)
+	{
+		min_x = (std::min)(min_x, cell.minimum.x);
+		max_x = (std::max)(max_x, cell.maximum.x);
+		min_z = (std::min)(min_z, cell.minimum.z);
+		max_z = (std::max)(max_z, cell.maximum.z);
+	}
+	const float map_size = 210.0f;
+	const float margin = 12.0f;
+	const float range = (std::max)((std::max)(max_x - min_x, max_z - min_z), 0.01f);
+	const ImVec2 map_origin(1280.0f - map_size - 22.0f, 720.0f - map_size - 24.0f);
+	const ImVec2 map_center(map_origin.x + map_size * 0.5f, map_origin.y + map_size * 0.5f);
+	const XMFLOAT3& player_position = player->get_position();
+	// Screen-up is world +Z for this stage. The map uses -world Z for its screen Y.
+	const float map_rotation = rotate_minimap_with_player ? minimap_rotation_angle : 0.0f;
+	const float map_cos = std::cosf(map_rotation);
+	const float map_sin = std::sinf(map_rotation);
+	const auto map_point = [&](float world_x, float world_z)
+	{
+		if (!rotate_minimap_with_player)
+		{
+			return ImVec2(
+				map_origin.x + margin + (world_x - min_x) / range * (map_size - margin * 2.0f),
+				map_origin.y + margin + (max_z - world_z) / range * (map_size - margin * 2.0f));
+		}
+		const float map_scale = (map_size - margin * 2.0f) / range;
+		const float dx = (world_x - player_position.x) * map_scale;
+		const float dz = -(world_z - player_position.z) * map_scale;
+		return ImVec2(map_center.x + dx * map_cos - dz * map_sin,
+			map_center.y + dx * map_sin + dz * map_cos);
+	};
+
+	// This project uses an older ImGui version where the foreground list is named Overlay.
+	ImDrawList* draw_list = ImGui::GetOverlayDrawList();
+	draw_list->AddRectFilled(map_origin, ImVec2(map_origin.x + map_size, map_origin.y + map_size), IM_COL32(4, 10, 24, 220));
+	draw_list->AddRect(map_origin, ImVec2(map_origin.x + map_size, map_origin.y + map_size), IM_COL32(55, 230, 190, 220), 0.0f, 0, 2.0f);
+	draw_list->PushClipRect(ImVec2(map_origin.x + 2.0f, map_origin.y + 2.0f),
+		ImVec2(map_origin.x + map_size - 2.0f, map_origin.y + map_size - 2.0f), true);
+	for (const CircuitCell& cell : circuit_cells)
+	{
+		const ImVec2 top_left = map_point(cell.minimum.x, cell.minimum.z);
+		const ImVec2 top_right = map_point(cell.maximum.x, cell.minimum.z);
+		const ImVec2 bottom_right = map_point(cell.maximum.x, cell.maximum.z);
+		const ImVec2 bottom_left = map_point(cell.minimum.x, cell.maximum.z);
+		// The minimap is a stable navigation aid. Recovery color belongs to the 3D world,
+		// while every traversable route remains equally readable on the map.
+		const ImU32 color = IM_COL32(35, 105, 175, 235);
+		draw_list->AddQuadFilled(top_left, top_right, bottom_right, bottom_left, color);
+	}
+
+	// Show both ends of the configured warp route as cyan markers.
+	if (warp_tunnel.enabled)
+	{
+		const ImVec2 left_gate = map_point(warp_tunnel.left_trigger_x, warp_tunnel.center_z);
+		const ImVec2 right_gate = map_point(warp_tunnel.right_trigger_x, warp_tunnel.center_z);
+		draw_list->AddCircle(left_gate, 4.0f, IM_COL32(40, 235, 255, 255), 8, 1.5f);
+		draw_list->AddCircle(right_gate, 4.0f, IM_COL32(40, 235, 255, 255), 8, 1.5f);
+	}
+
+	const auto draw_enemy = [&](const PacmanPlayer& actor, ImU32 color)
+	{
+		const XMFLOAT3& position = actor.get_position();
+		draw_list->AddCircleFilled(map_point(position.x, position.z), 4.5f, color, 10);
+	};
+	draw_enemy(*enemy, IM_COL32(255, 65, 72, 255));
+	draw_enemy(*enemy_second, IM_COL32(255, 160, 35, 255));
+
+	const ImVec2 player_point = map_point(player_position.x, player_position.z);
+	const float player_angle = player->get_angle().y;
+	const ImVec2 unrotated_forward(std::sinf(player_angle), -std::cosf(player_angle));
+	const ImVec2 forward(
+		unrotated_forward.x * map_cos - unrotated_forward.y * map_sin,
+		unrotated_forward.x * map_sin + unrotated_forward.y * map_cos);
+	const ImVec2 side(forward.y, -forward.x);
+	const ImVec2 triangle[] = {
+		ImVec2(player_point.x + forward.x * 7.0f, player_point.y + forward.y * 7.0f),
+		ImVec2(player_point.x - forward.x * 5.0f + side.x * 4.5f, player_point.y - forward.y * 5.0f + side.y * 4.5f),
+		ImVec2(player_point.x - forward.x * 5.0f - side.x * 4.5f, player_point.y - forward.y * 5.0f - side.y * 4.5f) };
+	draw_list->AddTriangleFilled(triangle[0], triangle[1], triangle[2], IM_COL32(255, 255, 255, 255));
+	draw_list->PopClipRect();
+#endif
+}
+
 void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
 {
 	if (attract_mode) draw_attract_hud(immediate_context);
-	else draw_gameplay_hud(immediate_context);
+	else
+	{
+		draw_gameplay_hud(immediate_context);
+		draw_minimap();
+	}
 #ifdef USE_IMGUI
 	if (show_development_debug && !attract_mode)
 	{
@@ -922,6 +1030,8 @@ void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
 		ImGui::DragFloat("Axis length", &editor_debug.axis_length, 0.1f, 0.1f, 20.0f);
 	}
 	ImGui::Checkbox("Show collision model (red wireframe)", &editor_debug.show_collision_model);
+	ImGui::Checkbox("Show tactical minimap", &show_minimap);
+	ImGui::Checkbox("Rotate minimap with player", &rotate_minimap_with_player);
 	ImGui::Separator();
 	const auto edit_warp_tunnel = [](const char* label, WarpTunnelSettings& tunnel)
 	{

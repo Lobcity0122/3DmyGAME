@@ -129,6 +129,11 @@ private:
 	// Visual-only endgame escalation. Enemy movement settings stay unchanged.
 	int system_alert_level = 0;
 	float system_alert_popup_time = 0.0f;
+	// Lightweight tactical map generated from stage_circuit cell bounds.
+	bool show_minimap = true;
+	bool rotate_minimap_with_player = true;
+	float minimap_rotation_angle = 0.0f;
+	float minimap_rotation_follow_speed = 5.0f;
 	// Enemy switches from patrol to chase only inside this horizontal range.
 	float enemy_chase_range = 12.0f;
 	// The orange interceptor aims this far ahead of the player's current direction.
@@ -198,6 +203,8 @@ private:
 	void draw_hud(ID3D11DeviceContext* immediate_context);
 	void draw_gameplay_hud(ID3D11DeviceContext* immediate_context);
 	void draw_attract_hud(ID3D11DeviceContext* immediate_context);
+	void draw_minimap();
+	void update_minimap_rotation(float elapsed_time);
 	void record_player_circuit(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end);
 	void draw_player_circuit(ID3D11DeviceContext* immediate_context);
 	void build_circuit_cells();
