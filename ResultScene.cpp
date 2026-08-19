@@ -1,10 +1,12 @@
-#include "ResultScene.h"
+﻿#include "ResultScene.h"
 #include <windows.h>
 #include <cstdio>
 #include <cmath>
 
 namespace
 {
+	// リザルト画面専用の固定解像度レイアウト。画面サイズ対応を行う場合は、
+	// この2値を基準に描画座標をスケーリングする。
 	constexpr float screen_width = 1280.0f;
 	constexpr float screen_height = 720.0f;
 }
@@ -21,6 +23,7 @@ bool ResultScene::initialize(ID3D11Device* device)
 
 void ResultScene::update(float elapsed_time)
 {
+	// Enterを押した瞬間だけ遷移する。押しっぱなしで連続遷移しないようにする。
 	blink_time += elapsed_time;
 	const bool enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
 	if (enter_pressed && !previous_enter_pressed)
@@ -30,6 +33,7 @@ void ResultScene::update(float elapsed_time)
 
 void ResultScene::render(ID3D11DeviceContext* immediate_context, float)
 {
+	// 背景、見出し、プレイ結果、戻る案内の順に重ねて描画する。
 	background->render(immediate_context, 0.0f, 0.0f, screen_width, screen_height,
 		0.035f, 0.045f, 0.10f, 1.0f, 0.0f);
 	const auto text = [this, immediate_context](const char* value, float x, float y,
@@ -66,6 +70,7 @@ void ResultScene::render(ID3D11DeviceContext* immediate_context, float)
 
 void ResultScene::uninitialize()
 {
+	// unique_ptrのリセットにより、シーン専用のGPUリソースを解放する。
 	font.reset();
 	background.reset();
 }

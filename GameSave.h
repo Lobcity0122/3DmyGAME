@@ -1,15 +1,15 @@
-#pragma once
+﻿#pragma once
 
 #include <algorithm>
 #include <fstream>
 
-// Small, deliberately transparent save format for data that must survive a
-// program restart. The current game has only one persistent value, so one
-// text file is easier to inspect and reset than introducing a larger system.
+// 実行をまたいで残す小さなゲームデータを扱う。
+// 現在はハイスコアだけなので、人間が確認・リセットしやすいテキストファイルを使う。
 namespace GameSave
 {
 	inline constexpr const char* high_score_file_name = "circuit_trax_high_score.txt";
 
+	// ファイルが存在しない、または不正な値だった場合は0点として開始する。
 	inline int load_high_score()
 	{
 		int score = 0;
@@ -18,6 +18,7 @@ namespace GameSave
 		return (std::max)(score, 0);
 	}
 
+	// 常に最新のハイスコア1件だけを書き込む。
 	inline void save_high_score(int score)
 	{
 		std::ofstream output(high_score_file_name, std::ios::trunc);

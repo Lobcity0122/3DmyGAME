@@ -12,7 +12,7 @@
 using namespace DirectX;
 
 // =============================================================================
-// Scene lifetime and per-frame update
+// シーンの寿命管理とフレームごとの更新
 // =============================================================================
 bool PacmanGameScene::initialize(ID3D11Device* device)
 {
@@ -44,24 +44,20 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	player_circuit_segments.clear();
 	circuit_cells.clear();
 
-	player = std::make_unique<PacmanPlayer>();
-	player->initialize();
-	enemy = std::make_unique<PacmanPlayer>();
-	enemy->initialize();
-	enemy_second = std::make_unique<PacmanPlayer>();
-	enemy_second->initialize();
+	const auto create_actor = [] { auto actor = std::make_unique<PacmanPlayer>(); actor->initialize(); return actor; };
+	player = create_actor();
+	enemy = create_actor();
+	enemy_second = create_actor();
 	camera_controller = std::make_unique<CameraController>();
 	player_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
 	hud_font = std::make_unique<sprite>(device, L".\\resources\\fonts\\font0.png");
 
 	XMFLOAT3 player_model_min{}, player_model_max{};
 	player_mesh->get_bounding_box(player_model_min, player_model_max);
-	player->set_collision_model_bounds(player_model_min, player_model_max);
-	enemy->set_collision_model_bounds(player_model_min, player_model_max);
-	enemy_second->set_collision_model_bounds(player_model_min, player_model_max);
+	for (PacmanPlayer* actor : { player.get(), enemy.get(), enemy_second.get() })
+		actor->set_collision_model_bounds(player_model_min, player_model_max);
 	stage_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage.obj");
 	background_mesh = std::make_unique<static_mesh>(device, L".\\resources\\skybox_side_chicken_gun\\haikei.obj");
-
 
 	collision_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage_collision.obj");
 
@@ -69,13 +65,11 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	debug_cube = std::make_unique<cube>(device);
 	configure_object_transforms();
 
-
 	D3D11_BUFFER_DESC buffer_desc{};
 	buffer_desc.ByteWidth = sizeof(SceneConstants);
 	buffer_desc.Usage = D3D11_USAGE_DEFAULT;
 	buffer_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	if (FAILED(device->CreateBuffer(&buffer_desc, nullptr, scene_constant_buffer.GetAddressOf()))) return false;
-
 
 	if (!create_shadow_map(device, shadow_map_size)) return false;
 
@@ -95,14 +89,12 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	shadow_rasterizer_desc.DepthClipEnable = TRUE;
 	if (FAILED(device->CreateRasterizerState(&shadow_rasterizer_desc, shadow_rasterizer_state.GetAddressOf()))) return false;
 
-
 	D3D11_RASTERIZER_DESC background_rasterizer_desc{};
 	background_rasterizer_desc.FillMode = D3D11_FILL_SOLID;
 	background_rasterizer_desc.CullMode = D3D11_CULL_NONE;
 	background_rasterizer_desc.DepthClipEnable = TRUE;
 	if (FAILED(device->CreateRasterizerState(&background_rasterizer_desc,
 		background_rasterizer_state.GetAddressOf()))) return false;
-
 
 	D3D11_RASTERIZER_DESC collision_rasterizer_desc{};
 	collision_rasterizer_desc.FillMode = D3D11_FILL_WIREFRAME;
@@ -111,7 +103,6 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	if (FAILED(device->CreateRasterizerState(&collision_rasterizer_desc,
 		collision_wireframe_rasterizer_state.GetAddressOf()))) return false;
 	
-
 	update_object_world_matrices();
 	build_circuit_cells();
 	total_time = 0.0f;
@@ -120,8 +111,8 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 
 void PacmanGameScene::update(float elapsed_time)
 {
-	// Pause is handled before any timer, AI, camera, or player update. This is
-	// what makes the freeze deterministic instead of merely hiding the scene.
+	// タイマー、AI、カメラ、自機を更新する前にポーズを処理する。
+	// 画面を隠すだけではなく、ゲーム全体を確実に停止させるためである。
 	if (!attract_mode && (game_state == GameState::Playing || game_state == GameState::Respawning))
 	{
 		const bool pause_pressed = (GetAsyncKeyState('P') & 0x8000) != 0;
@@ -175,7 +166,7 @@ void PacmanGameScene::update(float elapsed_time)
 	bool is_editing_camera = false;
 	if (game_state == GameState::GameClearFade || attract_mode)
 	{
-		// Clear and title-demo cameras are directed shots, not player/editor cameras.
+		// クリア時とタイトルデモは、自機追従・編集カメラではない演出用カメラを使う。
 		camera_controller->stop_editor_camera();
 	}
 	else
@@ -195,14 +186,14 @@ void PacmanGameScene::update(float elapsed_time)
 				player->update_enemy(elapsed_time, collision_mesh.get(), stage_world);
 			else
 				player->update(elapsed_time, collision_mesh.get(), stage_world);
-			// Do not draw one long green circuit segment across the whole level when
-			// the player uses a tunnel. The entry and exit are visually discontinuous.
+			// ワープの入口と出口は見た目上つながっていないため、迷路を横断する
+			// 長い緑の回路線が描かれないようにする。
 			const bool player_warped = apply_warp_tunnel(*player);
 			if (!player_warped)
 				record_player_circuit(player_previous_position, player->get_position());
 			if (!attract_mode)
 			{
-				// New cells extend the short chain window. Revisiting a recovered road does not.
+				// 新しいセルだけが短いチェイン受付時間を延長する。復旧済み通路は延長しない。
 				const int newly_recovered = recover_circuit_cells_at(player->get_position());
 				if (newly_recovered > 0)
 				{
@@ -226,8 +217,8 @@ void PacmanGameScene::update(float elapsed_time)
 			enemy->update_enemy(elapsed_time, collision_mesh.get(), stage_world,
 				&player->get_position(), enemy_chase_range);
 			apply_warp_tunnel(*enemy);
-			// The orange drone does not target the player's current position. It targets
-			// a point ahead of the current heading, so it tends to cut off an escape route.
+			// オレンジの敵は自機の現在位置ではなく、進行方向の少し先を狙う。
+			// これにより逃げ道を先回りして塞ぎやすくなる。
 			const XMFLOAT3& player_position = player->get_position();
 			const float player_heading = player->get_angle().y;
 			const XMFLOAT3 intercept_target{
@@ -262,8 +253,8 @@ void PacmanGameScene::update(float elapsed_time)
 		else if ((game_state == GameState::GameOverFade || game_state == GameState::GameClearFade) &&
 			state_timer >= 2.8f && !exit_requested)
 		{
-			// Fade-out ends at a result screen instead of closing the application.
-			// The result scene owns the "press Enter to return" step.
+			// フェードアウト後はアプリを終了せず、リザルト画面へ遷移する。
+			// タイトルへ戻るEnter入力はリザルト画面側で扱う。
 			finish_to_result();
 		}
 		if (game_state == GameState::GameClearFade)
@@ -274,8 +265,8 @@ void PacmanGameScene::update(float elapsed_time)
 		}
 		else if (attract_mode)
 		{
-			// Title demo: a high, slow orbit around the entire maze. This deliberately
-			// avoids the gameplay follow camera so the title reads as a separate scene.
+			// タイトルデモでは、迷路全体を高い位置からゆっくり周回する。
+			// 本編の追従カメラを使わず、別シーンだと分かる見せ方にする。
 			const float orbit_angle = total_time * 0.1f;
 			const XMFLOAT3 title_eye{
 				std::sinf(orbit_angle) * 42.0f,
@@ -293,8 +284,9 @@ void PacmanGameScene::update(float elapsed_time)
 	update_object_world_matrices();
 	total_time += elapsed_time;
 }
+
 // =============================================================================
-// Initial placement and transform conversion
+// 初期配置とトランスフォームの変換
 // =============================================================================
 void PacmanGameScene::configure_object_transforms()
 {
@@ -319,8 +311,8 @@ void PacmanGameScene::configure_object_transforms()
 	enemy->set_angle({ 0.0f, 0.0f, 0.0f });
 	enemy->set_scale({ 0.6f, 0.6f, 0.6f });
 
-	// A second drone begins on the opposing lower corridor. Its orange color
-	// makes it readable without requiring a separate mesh asset.
+	// 2体目の敵は反対側の下通路から開始する。別モデルを用意せずとも、
+	// オレンジ色にすることで見分けられる。
 	enemy_second_spawn_position = { -10.0f, 1.3f, 13.0f };
 	enemy_second->set_position(enemy_second_spawn_position);
 	enemy_second->set_angle({ 0.0f, DirectX::XM_PI, 0.0f });
@@ -365,7 +357,6 @@ void PacmanGameScene::render(ID3D11DeviceContext* immediate_context, float)
 
 bool PacmanGameScene::create_shadow_map(ID3D11Device* device, UINT size)
 {
-
 	Microsoft::WRL::ComPtr<ID3D11Texture2D> new_texture;
 	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> new_dsv;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> new_srv;
@@ -394,19 +385,33 @@ bool PacmanGameScene::create_shadow_map(ID3D11Device* device, UINT size)
 
 XMMATRIX PacmanGameScene::calculate_light_view_projection() const
 {
-
+	const LightSettings render_light = get_render_light_settings();
 	const XMVECTOR target = XMVectorSet(0.0f, 5.0f, 0.0f, 1.0f);
-	const XMVECTOR direction = XMVector3Normalize(XMLoadFloat3(&light_settings.direction));
+	const XMVECTOR direction = XMVector3Normalize(XMLoadFloat3(&render_light.direction));
 	const XMVECTOR eye = XMVectorSubtract(target, XMVectorScale(direction, 45.0f));
 	const XMMATRIX view = XMMatrixLookAtLH(eye, target, XMVectorSet(0, 1, 0, 0));
 	const XMMATRIX projection = XMMatrixOrthographicLH(60.0f, 60.0f, 0.1f, 120.0f);
 	return view * projection;
 }
 
+PacmanGameScene::LightSettings PacmanGameScene::get_render_light_settings() const
+{
+	LightSettings render_light = light_settings;
+	if (!rotate_light_with_background) return render_light;
+
+	// 背景を回すY軸回転を、方向光の向きとポイントライトの位置へ同じように適用する。
+	const XMMATRIX rotation = XMMatrixRotationY(
+		XMConvertToRadians(background_transform.rotation_degrees.y));
+	XMStoreFloat3(&render_light.direction,
+		XMVector3TransformNormal(XMLoadFloat3(&light_settings.direction), rotation));
+	XMStoreFloat3(&render_light.position,
+		XMVector3TransformCoord(XMLoadFloat3(&light_settings.position), rotation));
+	return render_light;
+}
+
 void PacmanGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
 {
 	if (!light_settings.use_shadows || light_settings.use_point_light) return;
-
 
 	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> previous_rtv;
 	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> previous_dsv;
@@ -432,7 +437,6 @@ void PacmanGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
 	immediate_context->UpdateSubresource(scene_constant_buffer.Get(), 0, nullptr, &shadow_constants, 0, 0);
 	immediate_context->VSSetConstantBuffers(1, 1, scene_constant_buffer.GetAddressOf());
 
-
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1), nullptr, true);
 	if (player_visible)
 		player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
@@ -446,6 +450,7 @@ void PacmanGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
 
 void PacmanGameScene::update_scene_constants(ID3D11DeviceContext* immediate_context)
 {
+	const LightSettings render_light = get_render_light_settings();
 	D3D11_VIEWPORT viewport{};
 	UINT viewport_count = 1;
 	immediate_context->RSGetViewports(&viewport_count, &viewport);
@@ -460,30 +465,29 @@ void PacmanGameScene::update_scene_constants(ID3D11DeviceContext* immediate_cont
 
 	SceneConstants constants{};
 	XMStoreFloat4x4(&constants.view_projection, view * projection);
-	constants.light_direction = XMFLOAT4(light_settings.direction.x, light_settings.direction.y, light_settings.direction.z, 0.0f);
+	constants.light_direction = XMFLOAT4(render_light.direction.x, render_light.direction.y, render_light.direction.z, 0.0f);
 	const XMFLOAT3& eye = camera_controller->get_eye();
 	constants.camera_position = XMFLOAT4(eye.x, eye.y, eye.z, 1.0f);
 	constants.light_position_range = XMFLOAT4(
-		light_settings.position.x, light_settings.position.y, light_settings.position.z, light_settings.range);
+		render_light.position.x, render_light.position.y, render_light.position.z, render_light.range);
 	constants.light_color_intensity = XMFLOAT4(
-		light_settings.color.x, light_settings.color.y, light_settings.color.z, light_settings.intensity);
+		render_light.color.x, render_light.color.y, render_light.color.z, render_light.intensity);
 	const float alert_pulse = system_alert_level > 0
 		? 0.5f + 0.5f * std::sinf(total_time * (3.0f + system_alert_level * 2.0f))
 		: 0.0f;
 	const float alert_ambient_boost = system_alert_level * 0.05f + alert_pulse * system_alert_level * 0.025f;
 	const float alert_exposure_boost = system_alert_level * 0.12f + alert_pulse * system_alert_level * 0.06f;
 	constants.ambient_color_intensity = XMFLOAT4(
-		light_settings.ambient_color.x, light_settings.ambient_color.y, light_settings.ambient_color.z,
-		light_settings.ambient_intensity + alert_ambient_boost);
+		render_light.ambient_color.x, render_light.ambient_color.y, render_light.ambient_color.z,
+		render_light.ambient_intensity + alert_ambient_boost);
 	constants.render_options = XMFLOAT4(
-		light_settings.use_point_light ? 1.0f : 0.0f,
-		light_settings.unlit_texture_check ? 1.0f : 0.0f,
-		light_settings.use_pbr_lighting ? 1.0f : 0.0f, 0.0f);
+		render_light.use_point_light ? 1.0f : 0.0f,
+		render_light.unlit_texture_check ? 1.0f : 0.0f,
+		render_light.use_pbr_lighting ? 1.0f : 0.0f, 0.0f);
 	XMStoreFloat4x4(&constants.light_view_projection, calculate_light_view_projection());
 	constants.shadow_settings = XMFLOAT4(0.0015f,
-		(!light_settings.use_point_light && light_settings.use_shadows) ? 1.0f : 0.0f, 0.0f, 0.0f);
-	constants.post_process_settings = XMFLOAT4(light_settings.exposure_ev + alert_exposure_boost, 0.0f, 0.0f, 0.0f);
-
+		(!render_light.use_point_light && render_light.use_shadows) ? 1.0f : 0.0f, 0.0f, 0.0f);
+	constants.post_process_settings = XMFLOAT4(render_light.exposure_ev + alert_exposure_boost, 0.0f, 0.0f, 0.0f);
 
 	immediate_context->UpdateSubresource(scene_constant_buffer.Get(), 0, nullptr, &constants, 0, 0);
 	immediate_context->VSSetConstantBuffers(1, 1, scene_constant_buffer.GetAddressOf());
@@ -494,8 +498,7 @@ void PacmanGameScene::update_scene_constants(ID3D11DeviceContext* immediate_cont
 
 void PacmanGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 {
-
-	// Draw the maze first, then its recovered paths and moving actors.
+	// 迷路、復旧済み回路、移動するアクターの順に描画する。
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1));
 	draw_player_circuit(immediate_context);
 	if (player_visible)
@@ -511,21 +514,20 @@ void PacmanGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 		immediate_context->RSSetState(previous_rasterizer.Get());
 	}
 
-
 	immediate_context->RSSetState(background_rasterizer_state.Get());
 	background_mesh->render(immediate_context, background_world, XMFLOAT4(1, 1, 1, 1));
 	draw_editor_helpers(immediate_context);
 }
 
 // =============================================================================
-// Circuit recovery rules and world-space debug helpers
+// 回路復旧ルールとワールド空間デバッグヘルパー
 // =============================================================================
 void PacmanGameScene::record_player_circuit(const XMFLOAT3& start, const XMFLOAT3& end)
 {
 	const float move_x = end.x - start.x;
 	const float move_z = end.z - start.z;
 	const float length_squared = move_x * move_x + move_z * move_z;
-	if (length_squared < 0.0004f) return; // 螢√・蜑阪〒豁｢縺ｾ縺｣縺溘ヵ繝ｬ繝ｼ繝縺ｯ蝗櫁ｷｯ縺ｫ縺励↑縺・・
+	if (length_squared < 0.0004f) return; // ほとんど移動していないフレームは線を追加しない。
 
 	CircuitSegment new_segment{ start, end };
 	if (!player_circuit_segments.empty())
@@ -550,8 +552,6 @@ void PacmanGameScene::record_player_circuit(const XMFLOAT3& start, const XMFLOAT
 
 void PacmanGameScene::build_circuit_cells()
 {
-
-
 	if (circuit_mesh == nullptr) return;
 	const XMMATRIX world = XMLoadFloat4x4(&stage_world);
 	for (const static_mesh::bounding_box& local_box : circuit_mesh->get_object_bounding_boxes())
@@ -608,7 +608,7 @@ int PacmanGameScene::get_recovered_circuit_cell_count() const
 
 int PacmanGameScene::get_recovery_chain_multiplier() const
 {
-	// Friendly arcade curve: x2 starts at CHAIN 3, then rises every three cells.
+	// 遊びやすいアーケード向けの曲線。CHAIN 3でx2になり、以後3セルごとに上がる。
 	return (std::min)(1 + recovery_chain / 3, 5);
 }
 
@@ -627,14 +627,11 @@ void PacmanGameScene::update_system_alert(float)
 
 void PacmanGameScene::draw_player_circuit(ID3D11DeviceContext* immediate_context)
 {
-
-
 	const float circuit_height = stage_transform.position.y + 0.2f * stage_transform.scale.y - 0.85f;
-
 	const float circuit_thickness = (std::max)(player->get_scale().x * 3.0f, 1.0f);
 	const int chain_multiplier = get_recovery_chain_multiplier();
-	// A clear color ladder makes the current score state readable at a glance.
-	// x1 green -> x2 cyan -> x3 violet -> x4 magenta -> x5 gold/white.
+	// 倍率ごとに色を変え、現在のスコア状態をひと目で分かるようにする。
+	// x1: 緑 -> x2: シアン -> x3: 紫 -> x4: マゼンタ -> x5: 金／白。
 	XMFLOAT3 base_color{ 0.08f, 0.95f, 0.20f };
 	if (chain_multiplier == 2) base_color = { 0.05f, 0.90f, 1.00f };
 	else if (chain_multiplier == 3) base_color = { 0.48f, 0.20f, 1.00f };
@@ -666,8 +663,8 @@ void PacmanGameScene::draw_player_circuit(ID3D11DeviceContext* immediate_context
 		debug_cube->render(immediate_context, world, circuit_color);
 	}
 
-	// A small bright packet travels across the newest continuous circuit segment.
-	// It is deliberately drawn only while chaining, so active movement feels alive.
+	// 新しくつながった回路線の上を、小さな明るい光が移動する。
+	// チェイン中だけ描画して、移動中の生きた感じを出す。
 	if (recovery_chain > 0 && !player_circuit_segments.empty())
 	{
 		const CircuitSegment& newest = player_circuit_segments.back();
@@ -693,7 +690,6 @@ void PacmanGameScene::draw_player_circuit(ID3D11DeviceContext* immediate_context
 void PacmanGameScene::draw_editor_helpers(ID3D11DeviceContext* immediate_context)
 {
 	if (!editor_debug.show_grid && !editor_debug.show_axis_gizmo) return;
-
 
 	const auto draw_box = [&](const XMFLOAT3& position, const XMFLOAT3& scale, const XMFLOAT4& color)
 	{
@@ -733,12 +729,12 @@ void PacmanGameScene::draw_editor_helpers(ID3D11DeviceContext* immediate_context
 }
 
 // =============================================================================
-// HUD and tactical-map presentation
+// HUDと戦術マップ表示
 // =============================================================================
 void PacmanGameScene::draw_gameplay_hud(ID3D11DeviceContext* immediate_context)
 {
-	// Player-facing HUD: only information needed while moving through the maze.
-	// It does not depend on ImGui and can later be replaced by authored PNG panels.
+	// 迷路を移動中に必要な情報だけを表示するプレイヤー向けHUD。
+	// ImGuiに依存しないため、後から作成したPNGパネルへ置き換えられる。
 	const auto text = [this, immediate_context](const char* value, float x, float y, float size,
 		float r, float g, float b)
 	{
@@ -797,9 +793,9 @@ void PacmanGameScene::draw_attract_hud(ID3D11DeviceContext* immediate_context)
 
 void PacmanGameScene::update_minimap_rotation(float elapsed_time)
 {
-	// Minimap screen Y uses -world Z, so player-follow rotation uses the opposite yaw.
+	// ミニマップの画面YはワールドZの反転値を使うため、自機追従回転も逆向きのYawを使う。
 	const float target_angle = rotate_minimap_with_player ? -player->get_angle().y : 0.0f;
-	// atan2(sin, cos) chooses the shortest route, including across the -PI/PI seam.
+	// atan2(sin, cos)で、-PIとPIの境界をまたぐ場合も最短方向へ回転する。
 	const float delta = std::atan2(std::sinf(target_angle - minimap_rotation_angle),
 		std::cosf(target_angle - minimap_rotation_angle));
 	const float blend = (std::min)(minimap_rotation_follow_speed * elapsed_time, 1.0f);
@@ -811,8 +807,8 @@ void PacmanGameScene::draw_minimap()
 #ifdef USE_IMGUI
 	if (!show_minimap || circuit_cells.empty() || attract_mode) return;
 
-	// This is intentionally derived from the same cells used for recovery logic.
-	// The tactical map therefore stays correct even if the visible stage mesh changes.
+	// 復旧判定と同じセルから意図的に生成している。そのため、見た目用の
+	// ステージメッシュが変わっても戦術マップの通路情報は正しく保たれる。
 	float min_x = FLT_MAX, max_x = -FLT_MAX, min_z = FLT_MAX, max_z = -FLT_MAX;
 	for (const CircuitCell& cell : circuit_cells)
 	{
@@ -827,7 +823,7 @@ void PacmanGameScene::draw_minimap()
 	const ImVec2 map_origin(1280.0f - map_size - 22.0f, 720.0f - map_size - 24.0f);
 	const ImVec2 map_center(map_origin.x + map_size * 0.5f, map_origin.y + map_size * 0.5f);
 	const XMFLOAT3& player_position = player->get_position();
-	// Screen-up is world +Z for this stage. The map uses -world Z for its screen Y.
+	// このステージで画面上方向はワールド+Z。マップの画面Yにはワールド-Zを使う。
 	const float map_rotation = rotate_minimap_with_player ? minimap_rotation_angle : 0.0f;
 	const float map_cos = std::cosf(map_rotation);
 	const float map_sin = std::sinf(map_rotation);
@@ -846,7 +842,7 @@ void PacmanGameScene::draw_minimap()
 			map_center.y + dx * map_sin + dz * map_cos);
 	};
 
-	// This project uses an older ImGui version where the foreground list is named Overlay.
+	// このプロジェクトのImGuiは古い版で、前面描画リストがOverlayという名前になっている。
 	ImDrawList* draw_list = ImGui::GetOverlayDrawList();
 	draw_list->AddRectFilled(map_origin, ImVec2(map_origin.x + map_size, map_origin.y + map_size), IM_COL32(4, 10, 24, 220));
 	draw_list->AddRect(map_origin, ImVec2(map_origin.x + map_size, map_origin.y + map_size), IM_COL32(55, 230, 190, 220), 0.0f, 0, 2.0f);
@@ -858,13 +854,13 @@ void PacmanGameScene::draw_minimap()
 		const ImVec2 top_right = map_point(cell.maximum.x, cell.minimum.z);
 		const ImVec2 bottom_right = map_point(cell.maximum.x, cell.maximum.z);
 		const ImVec2 bottom_left = map_point(cell.minimum.x, cell.maximum.z);
-		// The minimap is a stable navigation aid. Recovery color belongs to the 3D world,
-		// while every traversable route remains equally readable on the map.
+		// ミニマップは安定したナビゲーション補助。回路の復旧色は3D空間だけで使い、
+		// マップ上では通行可能な全ルートを同じ見やすさで表示する。
 		const ImU32 color = IM_COL32(35, 105, 175, 235);
 		draw_list->AddQuadFilled(top_left, top_right, bottom_right, bottom_left, color);
 	}
 
-	// Show both ends of the configured warp route as cyan markers.
+	// 設定済みワープ経路の両端をシアンのマーカーで示す。
 	if (warp_tunnel.enabled)
 	{
 		const ImVec2 left_gate = map_point(warp_tunnel.left_trigger_x, warp_tunnel.center_z);
@@ -946,11 +942,12 @@ void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
 	}
 	ImGui::End();
 
-	// This window edits the values that will be copied to the b1 scene constant buffer next frame.
+	// このウィンドウでは、次フレームにb1シーン定数バッファへコピーする値を編集する。
 	ImGui::SetNextWindowPos(ImVec2(20, 200), ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowSize(ImVec2(360, 0), ImGuiCond_FirstUseEver);
 	ImGui::Begin("Lighting / Texture Debug");
 	ImGui::Checkbox("Use point light", &light_settings.use_point_light);
+	ImGui::Checkbox("Rotate light with background", &rotate_light_with_background);
 	ImGui::Checkbox("Enable directional shadows", &light_settings.use_shadows);
 	const char* shadow_size_labels[] = { "1024 x 1024", "2048 x 2048", "4096 x 4096" };
 	int shadow_size_index = shadow_map_size == 1024 ? 0 : shadow_map_size == 4096 ? 2 : 1;
@@ -981,8 +978,6 @@ void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
 	ImGui::Checkbox("Unlit texture check", &light_settings.unlit_texture_check);
 	ImGui::TextWrapped("Enable this to view texture colors without lighting. White or gray areas may use a dummy texture.");
 	ImGui::End();
-
-
 
 	ImGui::SetNextWindowPos(ImVec2(400, 20), ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowSize(ImVec2(330, 0), ImGuiCond_FirstUseEver);
@@ -1077,12 +1072,12 @@ void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
 	}
 	ImGui::TextWrapped("Grid: XZ plane at world origin. Gizmo: X red, Y green, Z blue.");
 	ImGui::End();
-	} // show_development_debug
+	} // 開発用デバッグUI
 
 	if (paused)
 	{
-		// The dimmer is foreground-only, so it darkens the whole game without
-		// altering lighting constants or the underlying 3D render state.
+		// 前面描画だけで暗幕を重ねる。ライト定数や3Dの描画状態を変えずに、
+		// ゲーム画面全体を暗くできる。
 		ImDrawList* foreground = ImGui::GetOverlayDrawList();
 		const ImVec2 screen_size = ImGui::GetIO().DisplaySize;
 		foreground->AddRectFilled(ImVec2(0.0f, 0.0f), screen_size, IM_COL32(0, 0, 0, 135));
@@ -1150,8 +1145,6 @@ bool PacmanGameScene::apply_warp_tunnel(PacmanPlayer& actor)
 
 bool PacmanGameScene::is_player_touching_enemy() const
 {
-
-
 	const DirectX::XMFLOAT3& player_position = player->get_position();
 	const float player_half_size = (std::max)(player->get_scale().x, player->get_scale().z);
 	const auto touches = [&player_position, player_half_size](const PacmanPlayer& other)
@@ -1175,7 +1168,7 @@ bool PacmanGameScene::award_near_miss_if_needed(const PacmanPlayer& other, float
 	const float distance_squared = dx * dx + dz * dz;
 	if (distance_squared > near_miss_radius * near_miss_radius) return false;
 
-	// The inner AABB is an actual hit, not a close pass, so it never earns points.
+	// 内側のAABBに入っている場合はニアミスではなく接触であり、得点は与えない。
 	const float player_half_size = (std::max)(player->get_scale().x, player->get_scale().z);
 	const float other_half_size = (std::max)(other.get_scale().x, other.get_scale().z);
 	const float hit_limit = player_half_size + other_half_size;
@@ -1208,7 +1201,6 @@ void PacmanGameScene::begin_respawn_or_game_over()
 
 void PacmanGameScene::begin_game_clear()
 {
-
 	game_state = GameState::GameClearFade;
 	state_timer = 0.0f;
 	player_visible = true;
@@ -1225,7 +1217,7 @@ void PacmanGameScene::finish_to_result()
 	latest_game_result.elapsed_seconds = total_time;
 	if (latest_game_result.cleared)
 	{
-		// Reaching the objective rewards remaining lives, not merely elapsed time.
+		// 目標達成時は経過時間だけでなく、残機にも報酬を与える。
 		score += 5000 + lives * 1000;
 	}
 	session_high_score = (std::max)(session_high_score, score);
@@ -1237,7 +1229,6 @@ void PacmanGameScene::finish_to_result()
 
 void PacmanGameScene::uninitialize()
 {
-
 	hud_font.reset();
 	player_mesh.reset();
 	stage_mesh.reset();

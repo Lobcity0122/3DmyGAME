@@ -29,7 +29,7 @@ void PacmanPlayer::set_scale(const XMFLOAT3& value)
 void PacmanPlayer::set_position(const XMFLOAT3& value)
 {
 	position = value;
-	// Warp / respawn positions need to be visible in the same frame.
+	// ワープ・リスポーン直後の座標も、そのフレーム内に描画へ反映する。
 	update_transform();
 }
 
@@ -46,6 +46,23 @@ void PacmanPlayer::rebuild_collision_aabb()
 	const float half_x = (std::max)(std::fabs(collision_model_min.x), std::fabs(collision_model_max.x)) * std::fabs(scale.x);
 	const float half_z = (std::max)(std::fabs(collision_model_min.z), std::fabs(collision_model_max.z)) * std::fabs(scale.z);
 	collision_half_extent = { half_x, half_z };
+}
+
+bool PacmanPlayer::move_with_collision(float elapsed_time, const static_mesh* collision_mesh,
+	const XMFLOAT4X4& collision_world)
+{
+	XMFLOAT3 next_position = position;
+	next_position.x += move_direction.x * move_speed * elapsed_time;
+	next_position.z += move_direction.y * move_speed * elapsed_time;
+
+	float allowed_fraction = 1.0f;
+	XMFLOAT3 hit_normal{};
+	const bool hit_wall = collision_mesh != nullptr && Collision::SweepAABB2D(
+		position, next_position, collision_half_extent, collision_world, collision_mesh,
+		allowed_fraction, hit_normal);
+	position.x += (next_position.x - position.x) * allowed_fraction;
+	position.z += (next_position.z - position.z) * allowed_fraction;
+	return hit_wall;
 }
 
 void PacmanPlayer::read_direction_input()
@@ -107,23 +124,9 @@ void PacmanPlayer::update(float elapsed_time, const static_mesh* collision_mesh,
 			move_direction = requested_direction;
 		}
 	}
-	XMFLOAT3 next_position = position;
-	next_position.x += move_direction.x * move_speed * elapsed_time;
-	next_position.z += move_direction.y * move_speed * elapsed_time;
-
 	// 自機AABBを壁AABBへスイープする。壁側を自機の半サイズぶん膨らませて
 	// 中心の移動線分と交差させるため、キューブ全体が壁に入らない。
-	const float movement_x = next_position.x - position.x;
-	const float movement_z = next_position.z - position.z;
-	float allowed_fraction = 1.0f;
-	XMFLOAT3 hit_normal{};
-	if (collision_mesh != nullptr)
-	{
-		Collision::SweepAABB2D(position, next_position, collision_half_extent,
-			collision_world, collision_mesh, allowed_fraction, hit_normal);
-	}
-	position.x += movement_x * allowed_fraction;
-	position.z += movement_z * allowed_fraction;
+	move_with_collision(elapsed_time, collision_mesh, collision_world);
 	angle.y = std::atan2(move_direction.x, move_direction.y);
 	update_transform();
 }
@@ -140,9 +143,8 @@ void PacmanPlayer::update_enemy(float elapsed_time, const static_mesh* collision
 		(target_dx * target_dx + target_dz * target_dz <= chase_range * chase_range);
 	const float step = move_speed * elapsed_time;
 
-	// Select a direction at a junction or a dead end. At a normal junction the
-	// reverse direction is excluded. It becomes available only when the forward
-	// route is blocked, preventing the enemy from indecisive backtracking.
+	// 交差点または行き止まりで次の方向を選ぶ。通常の交差点では反転を除外し、
+	// 前方が塞がれたときだけ反転を許可して、無意味な往復を防ぐ。
 	const auto choose_direction = [&](bool allow_reverse, bool require_side_turn)
 	{
 		struct Candidate
@@ -202,22 +204,12 @@ void PacmanPlayer::update_enemy(float elapsed_time, const static_mesh* collision
 		return true;
 	};
 
-	// A valid perpendicular route means this is a real junction. Make a choice
-	// before reaching the wall so patrols cover the maze instead of only U-turning.
+	// 横方向へ有効な通路があれば本物の交差点。壁へ届く前に選択することで、
+	// パトロールが単なるUターンだけにならず迷路全体を巡回する。
 	if (ai_decision_cooldown <= 0.0f && choose_direction(false, true))
 		ai_decision_cooldown = 0.20f;
 
-	XMFLOAT3 next_position = position;
-	next_position.x += move_direction.x * step;
-	next_position.z += move_direction.y * step;
-	float allowed_fraction = 1.0f;
-	XMFLOAT3 hit_normal{};
-	const bool hit_wall = collision_mesh != nullptr && Collision::SweepAABB2D(
-		position, next_position, collision_half_extent, collision_world, collision_mesh,
-		allowed_fraction, hit_normal);
-
-	position.x += (next_position.x - position.x) * allowed_fraction;
-	position.z += (next_position.z - position.z) * allowed_fraction;
+	const bool hit_wall = move_with_collision(elapsed_time, collision_mesh, collision_world);
 	if (hit_wall)
 	{
 		choose_direction(true, false);

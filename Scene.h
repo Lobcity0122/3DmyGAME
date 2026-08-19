@@ -1,25 +1,20 @@
-#pragma once
+﻿#pragma once
 
 #include <d3d11.h>
-#include <wrl.h>
-#include <directxmath.h>
 
-using namespace Microsoft::WRL;
-
-// �V�[���^�C�v�̗�
+// framework が管理するシーンの種類。シーン自身は get_next_scene() で
+// 次に遷移したい種類を返し、実際の生成・破棄は framework が行う。
 enum class SceneType
 {
 	MENU,
-	// �^�C�g����ʂ̔w��ŁA�{�҂Ɠ���3D�V�[�����������삷��f���Đ��B
-	PACMAN_ATTRACT,
+	PACMAN_ATTRACT, // タイトル画面の背景で流す無操作デモ。
 	PACMAN,
 	PACMAN_RESULT,
 	ONLYUP
 };
 
-// A compact record handed from the game scene to the result scene.
-// Keeping it here makes the scene boundary explicit and avoids ResultScene
-// depending on PacmanGameScene internals.
+// ゲームシーンからリザルトシーンへ渡す、1プレイ分の確定結果。
+// リザルト側がPacmanGameSceneの内部実装へ依存しないよう、この共通ヘッダに置く。
 struct GameResultData
 {
 	bool cleared = false;
@@ -31,33 +26,23 @@ struct GameResultData
 	int high_score = 0;
 };
 
-// This game currently has one play mode, so a single shared hand-off record is enough.
-// When multiple concurrent game modes are added, this can become framework-owned data.
+// 現在は1つのゲームモードだけなので、シーン間の受け渡しには共有データで十分。
+// モードやセーブデータが増えたら、framework所有のゲーム状態へ移行できる。
 inline GameResultData latest_game_result{};
-// Session-only high score. File persistence can later be added without changing scenes.
 inline int session_high_score = 0;
 
-// �V�[�����N���X
+// すべてのシーンが実装する最小限のライフサイクル。
 class Scene
 {
 public:
-	virtual ~Scene() {}
+	virtual ~Scene() = default;
 
-	// ������
 	virtual bool initialize(ID3D11Device* device) = 0;
-
-	// �X�V
 	virtual void update(float elapsed_time) = 0;
-
-	// �`��
 	virtual void render(ID3D11DeviceContext* immediate_context, float elapsed_time) = 0;
-
-	// �I������
 	virtual void uninitialize() = 0;
 
-	// �V�[���^�C�v���擾
 	virtual SceneType get_type() const = 0;
-
-	// �V�[�����g���J�ڂ�v������ꍇ�Ɏg���B�ʏ�͌��݂̃V�[�����p������B
+	// 遷移要求がなければ、現在のシーン種類を返して継続する。
 	virtual SceneType get_next_scene() const { return get_type(); }
 };

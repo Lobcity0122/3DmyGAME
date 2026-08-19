@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CameraController.h"
 #include "PacmanPlayer.h"
@@ -12,12 +12,12 @@
 #include <vector>
 #include <wrl.h>
 
-// Owns one CIRCUIT TRAX play session.  It contains the rules and presentation
-// for both the playable scene and the title's no-input attract demonstration.
+// CIRCUIT TRAX の1プレイ分を管理する。通常プレイと、タイトルで流す
+// 無操作のアトラクトデモは同じルール・描画経路を共有する。
 class PacmanGameScene final : public Scene
 {
 public:
-	// false: normal play. true: title-screen attract mode using the same maze.
+	// falseなら通常プレイ、trueなら同じ迷路を使うタイトル用アトラクトモード。
 	explicit PacmanGameScene(bool is_attract_mode = false) : attract_mode(is_attract_mode) {}
 
 	bool initialize(ID3D11Device* device) override;
@@ -33,7 +33,7 @@ public:
 
 private:
 	// -------------------------------------------------------------------------
-	// Scene objects and GPU resources
+	// シーンオブジェクトとGPUリソース
 	// -------------------------------------------------------------------------
 	std::unique_ptr<PacmanPlayer> player;
 	std::unique_ptr<PacmanPlayer> enemy;
@@ -44,12 +44,12 @@ private:
 	std::unique_ptr<static_mesh> player_mesh;
 	std::unique_ptr<static_mesh> stage_mesh;
 	std::unique_ptr<static_mesh> background_mesh;
-	std::unique_ptr<static_mesh> collision_mesh; // Invisible collision-only OBJ.
-	std::unique_ptr<static_mesh> circuit_mesh;   // Corridor cells used by recovery.
+	std::unique_ptr<static_mesh> collision_mesh; // 描画しない当たり判定専用OBJ。
+	std::unique_ptr<static_mesh> circuit_mesh;   // 回路復旧に使う通路セル。
 	std::unique_ptr<cube> debug_cube;
 
-	// Matches SCENE_CONSTANT_BUFFER (register b1) in static_mesh.hlsli.
-	// Every model reads the same camera, lighting, and shadow data from it.
+	// static_mesh.hlsli のSCENE_CONSTANT_BUFFER（レジスタb1）と一致する。
+	// 全モデルがここから共通のカメラ・ライト・影データを読む。
 	struct SceneConstants
 	{
 		DirectX::XMFLOAT4X4 view_projection;
@@ -74,7 +74,7 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11RasterizerState> collision_wireframe_rasterizer_state;
 
 	// -------------------------------------------------------------------------
-	// Scene presentation settings
+	// シーンの見た目に関する設定
 	// -------------------------------------------------------------------------
 	struct LightSettings
 	{
@@ -92,6 +92,9 @@ private:
 		bool unlit_texture_check = false;
 	};
 	LightSettings light_settings;
+	// ライト編集値を背景と同じY回転で描画へ渡す。元の編集値は保持するため、
+	// 背景回転を止めてもライトが累積してずれることはない。
+	bool rotate_light_with_background = true;
 
 	struct EditorDebugSettings
 	{
@@ -100,15 +103,15 @@ private:
 		bool show_axis_gizmo = true;
 		bool show_collision_model = false;
 		bool rotate_background = true;
-		float background_rotation_speed = 2.0f; // Degrees per second.
+		float background_rotation_speed = 2.0f; // 1秒あたりの回転角度（度）。
 		float grid_half_size = 20.0f;
 		float grid_spacing = 1.0f;
 		float axis_length = 2.0f;
 	};
 	EditorDebugSettings editor_debug;
 
-	// Stores authoring-friendly degrees. update_object_world_matrices converts
-	// this data to the matrices consumed by the renderer.
+	// 編集しやすい「度」で保持する。update_object_world_matrices() が
+	// 描画器で使う行列へ変換する。
 	struct ObjectTransform
 	{
 		DirectX::XMFLOAT3 position{ 0.0f, 0.0f, 0.0f };
@@ -124,7 +127,7 @@ private:
 	UINT requested_shadow_map_size = 2048;
 
 	// -------------------------------------------------------------------------
-	// Play state, score, and AI tuning
+	// プレイ状態、スコア、AI調整値
 	// -------------------------------------------------------------------------
 	enum class GameState { Playing, Respawning, GameOverFade, GameClearFade };
 	GameState game_state = GameState::Playing;
@@ -147,14 +150,14 @@ private:
 	float near_miss_popup_time = 0.0f;
 	int near_miss_popup_score = 0;
 
-	// This changes HUD and lighting emphasis only; it does not change AI speed.
+	// HUDとライティング演出だけを変える。敵AIの速度は変えない。
 	int system_alert_level = 0;
 	float system_alert_popup_time = 0.0f;
 	float enemy_chase_range = 12.0f;
 	float enemy_intercept_distance = 6.0f;
 
 	// -------------------------------------------------------------------------
-	// Maze data and warp gates
+	// 迷路データとワープゲート
 	// -------------------------------------------------------------------------
 	struct CircuitSegment
 	{
@@ -170,8 +173,8 @@ private:
 	std::vector<CircuitSegment> player_circuit_segments;
 	std::vector<CircuitCell> circuit_cells;
 
-	// Coordinates are world-space after applying stage_transform. The exits sit
-	// inside their trigger ranges, preventing an immediate warp back next frame.
+	// 座標はstage_transform適用後のワールド座標。出口を判定範囲の内側へ
+	// 置くことで、次フレームに即座に逆ワープしないようにしている。
 	struct WarpTunnelSettings
 	{
 		bool enabled = true;
@@ -185,7 +188,7 @@ private:
 	WarpTunnelSettings warp_tunnel;
 
 	// -------------------------------------------------------------------------
-	// Input, scene flow, and tactical-map presentation
+	// 入力、シーン遷移、戦術マップ表示
 	// -------------------------------------------------------------------------
 	bool attract_mode = false;
 	SceneType next_scene_type = SceneType::PACMAN;
@@ -206,7 +209,7 @@ private:
 	DirectX::XMFLOAT3 enemy_second_spawn_position{};
 
 	// -------------------------------------------------------------------------
-	// Update and game-rule helpers
+	// 更新・ゲームルール用ヘルパー
 	// -------------------------------------------------------------------------
 	void configure_object_transforms();
 	void update_object_world_matrices();
@@ -225,9 +228,10 @@ private:
 	void finish_to_result();
 
 	// -------------------------------------------------------------------------
-	// Rendering helpers
+	// 描画用ヘルパー
 	// -------------------------------------------------------------------------
 	bool create_shadow_map(ID3D11Device* device, UINT size);
+	LightSettings get_render_light_settings() const;
 	DirectX::XMMATRIX calculate_light_view_projection() const;
 	void render_shadow_map(ID3D11DeviceContext* immediate_context);
 	void update_scene_constants(ID3D11DeviceContext* immediate_context);
