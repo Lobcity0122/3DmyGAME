@@ -1,7 +1,8 @@
-#include "framework.h"
+ï»¿#include "framework.h"
 #include "PacmanGameScene.h"
 #include "MenuScene.h"
 #include "ResultScene.h"
+#include "GameSave.h"
 #include <chrono>
 #include <cmath>
 #include <sstream>
@@ -13,7 +14,7 @@ using namespace Microsoft::WRL;
 
 bool framework::initialize()
 {
-	// ‰Šú‰»‚Ì‡˜: ƒfƒoƒCƒX/ƒXƒƒbƒvƒ`ƒF[ƒ“ -> ƒJƒ‰[/[“xƒ^[ƒQƒbƒg -> ‹¤’ÊƒXƒe[ƒg -> Å‰‚ÌƒV[ƒ“
+	// åˆæœŸåŒ–ã®é †åº: ãƒ‡ãƒã‚¤ã‚¹/ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ -> ã‚«ãƒ©ãƒ¼/æ·±åº¦ã‚¿ãƒ¼ã‚²ãƒƒãƒˆ -> å…±é€šã‚¹ãƒ†ãƒ¼ãƒˆ -> æœ€åˆã®ã‚·ãƒ¼ãƒ³
 	DXGI_SWAP_CHAIN_DESC swap_chain_desc{};
 	swap_chain_desc.BufferCount = 1;
 	swap_chain_desc.BufferDesc.Width = SCREEN_WIDTH;
@@ -37,12 +38,12 @@ bool framework::initialize()
 		swap_chain.GetAddressOf(), device.GetAddressOf(), &feature_level, immediate_context.GetAddressOf());
 	if (FAILED(hr)) return false;
 
-	// ƒoƒbƒNƒoƒbƒtƒ@‚Í‰Â‹ƒJƒ‰[‚ğŠi”[‚·‚éB•Ê‚ÌƒeƒNƒXƒ`ƒƒ‚ÍƒsƒNƒZƒ‹‚²‚Æ‚Ì[“x‚ğŠi”[‚·‚éB
+	// ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã¯å¯è¦–ã‚«ãƒ©ãƒ¼ã‚’æ ¼ç´ã™ã‚‹ã€‚åˆ¥ã®ãƒ†ã‚¯ã‚¹ãƒãƒ£ã¯ãƒ”ã‚¯ã‚»ãƒ«ã”ã¨ã®æ·±åº¦ã‚’æ ¼ç´ã™ã‚‹ã€‚
 	ComPtr<ID3D11Texture2D> back_buffer;
 	if (FAILED(swap_chain->GetBuffer(0, IID_PPV_ARGS(back_buffer.GetAddressOf()))) ||
 		FAILED(device->CreateRenderTargetView(back_buffer.Get(), nullptr, render_target_view.GetAddressOf()))) return false;
 
-	// [“xƒoƒbƒtƒ@‚ÍAƒsƒNƒZƒ‹‚²‚Æ‚Ì[“x‚ğŠi”[‚·‚é
+	// æ·±åº¦ãƒãƒƒãƒ•ã‚¡ã¯ã€ãƒ”ã‚¯ã‚»ãƒ«ã”ã¨ã®æ·±åº¦ã‚’æ ¼ç´ã™ã‚‹
 	D3D11_TEXTURE2D_DESC depth_desc{};
 	depth_desc.Width = SCREEN_WIDTH;
 	depth_desc.Height = SCREEN_HEIGHT;
@@ -55,7 +56,7 @@ bool framework::initialize()
 	if (FAILED(device->CreateTexture2D(&depth_desc, nullptr, depth_texture.GetAddressOf())) ||
 		FAILED(device->CreateDepthStencilView(depth_texture.Get(), nullptr, depth_stencil_view.GetAddressOf()))) return false;
 
-	// ‚±‚ê‚ç‚Í‚·‚×‚Ä‚Ì Scene::render() ŒÄ‚Ño‚µ‚Ì‘O‚Ég—p‚³‚ê‚éƒfƒtƒHƒ‹ƒg‚ÌƒXƒe[ƒgB
+	// ã“ã‚Œã‚‰ã¯ã™ã¹ã¦ã® Scene::render() å‘¼ã³å‡ºã—ã®å‰ã«ä½¿ç”¨ã•ã‚Œã‚‹ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã®ã‚¹ãƒ†ãƒ¼ãƒˆã€‚
 	D3D11_SAMPLER_DESC sampler_desc{};
 	sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 	sampler_desc.AddressU = sampler_desc.AddressV = sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -63,27 +64,27 @@ bool framework::initialize()
 	sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
 	if (FAILED(device->CreateSamplerState(&sampler_desc, linear_sampler.GetAddressOf()))) return false;
 
-	// [“xƒXƒeƒ“ƒVƒ‹ƒXƒe[ƒg‚ÍAƒsƒNƒZƒ‹‚Ì[“xƒeƒXƒg‚ğ§Œä‚·‚é
+	// æ·±åº¦ã‚¹ãƒ†ãƒ³ã‚·ãƒ«ã‚¹ãƒ†ãƒ¼ãƒˆã¯ã€ãƒ”ã‚¯ã‚»ãƒ«ã®æ·±åº¦ãƒ†ã‚¹ãƒˆã‚’åˆ¶å¾¡ã™ã‚‹
 	D3D11_DEPTH_STENCIL_DESC depth_state_desc{};
 	depth_state_desc.DepthEnable = TRUE;
 	depth_state_desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
 	depth_state_desc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 	if (FAILED(device->CreateDepthStencilState(&depth_state_desc, depth_enabled_state.GetAddressOf()))) return false;
 
-	// ƒuƒŒƒ“ƒhƒXƒe[ƒg‚ÍAƒsƒNƒZƒ‹‚ÌƒAƒ‹ƒtƒ@ƒuƒŒƒ“ƒh‚ğ§Œä‚·‚é
+	// ãƒ–ãƒ¬ãƒ³ãƒ‰ã‚¹ãƒ†ãƒ¼ãƒˆã¯ã€ãƒ”ã‚¯ã‚»ãƒ«ã®ã‚¢ãƒ«ãƒ•ã‚¡ãƒ–ãƒ¬ãƒ³ãƒ‰ã‚’åˆ¶å¾¡ã™ã‚‹
 	D3D11_BLEND_DESC blend_desc{};
 	blend_desc.RenderTarget[0].BlendEnable = FALSE;
 	blend_desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 	if (FAILED(device->CreateBlendState(&blend_desc, opaque_blend_state.GetAddressOf()))) return false;
 
-	// ƒ‰ƒXƒ^ƒ‰ƒCƒU[ƒXƒe[ƒg‚ÍAƒ|ƒŠƒSƒ“‚Ì“h‚è‚Â‚Ô‚µ•û–@‚ÆƒJƒŠƒ“ƒO•û–@‚ğ§Œä‚·‚é
+	// ãƒ©ã‚¹ã‚¿ãƒ©ã‚¤ã‚¶ãƒ¼ã‚¹ãƒ†ãƒ¼ãƒˆã¯ã€ãƒãƒªã‚´ãƒ³ã®å¡—ã‚Šã¤ã¶ã—æ–¹æ³•ã¨ã‚«ãƒªãƒ³ã‚°æ–¹æ³•ã‚’åˆ¶å¾¡ã™ã‚‹
 	D3D11_RASTERIZER_DESC rasterizer_desc{};
 	rasterizer_desc.FillMode = D3D11_FILL_SOLID;
 	rasterizer_desc.CullMode = D3D11_CULL_BACK;
 	rasterizer_desc.DepthClipEnable = TRUE;
 	if (FAILED(device->CreateRasterizerState(&rasterizer_desc, rasterizer_state.GetAddressOf()))) return false;
 
-	// ƒrƒ…[ƒ|[ƒg‚ÍAƒŒƒ“ƒ_ƒŠƒ“ƒO‘ÎÛ‚Ì‹éŒ`—Ìˆæ‚ğ’è‹`‚·‚é
+	// ãƒ“ãƒ¥ãƒ¼ãƒãƒ¼ãƒˆã¯ã€ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°å¯¾è±¡ã®çŸ©å½¢é ˜åŸŸã‚’å®šç¾©ã™ã‚‹
 	D3D11_VIEWPORT viewport{};
 	viewport.Width = static_cast<float>(SCREEN_WIDTH);
 	viewport.Height = static_cast<float>(SCREEN_HEIGHT);
@@ -91,25 +92,28 @@ bool framework::initialize()
 	viewport.MaxDepth = 1.0f;
 	immediate_context->RSSetViewports(1, &viewport);
 
+	// Read this before creating the first scene so every title/result screen
+	// starts from the same persistent value.
+	session_high_score = GameSave::load_high_score();
 	change_scene(SceneType::MENU);
 	return current_scene != nullptr;
 }
 
-// ƒAƒvƒŠƒP[ƒVƒ‡ƒ“ƒ‹[ƒv‚ÌƒGƒ“ƒgƒŠ[ƒ|ƒCƒ“ƒgAƒtƒŒ[ƒ€‚²‚Æ‚ÉXV‚Æ•`‰æ‚ğŒJ‚è•Ô‚·
+// ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ãƒ«ãƒ¼ãƒ—ã®ã‚¨ãƒ³ãƒˆãƒªãƒ¼ãƒã‚¤ãƒ³ãƒˆã€ãƒ•ãƒ¬ãƒ¼ãƒ ã”ã¨ã«æ›´æ–°ã¨æç”»ã‚’ç¹°ã‚Šè¿”ã™
 int framework::run()
 {
 	if (!initialize()) return 0;
-	// Sleep() ‚ÌŠù’è—±“x‚Í–ñ15.6ms‚ÅA120FPSi8.33msj‚ğ³Šm‚É§ŒÀ‚Å‚«‚È‚¢B
-	// 1ms—±“x‚ğ—v‹‚µAc‚è‚Ì’ZŠÔ‚¾‚¯‚ğ‘Ò‹@‚·‚éB
+	// Sleep() ã®æ—¢å®šç²’åº¦ã¯ç´„15.6msã§ã€120FPSï¼ˆ8.33msï¼‰ã‚’æ­£ç¢ºã«åˆ¶é™ã§ããªã„ã€‚
+	// 1msç²’åº¦ã‚’è¦æ±‚ã—ã€æ®‹ã‚Šã®çŸ­æ™‚é–“ã ã‘ã‚’å¾…æ©Ÿã™ã‚‹ã€‚
 	timeBeginPeriod(1);
 #ifdef USE_IMGUI
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	// ImGui‚ÌˆÊ’uEƒTƒCƒYEŠJ•Âó‘Ô‚ÍAÀsƒtƒHƒ‹ƒ_‚Ìê—pINI‚Ö•Û‘¶‚·‚éB
-	// IniFilename‚ğnullptr‚É‚µ‚Ä–¾¦“I‚É“Ç‚İ‘‚«‚·‚é‚±‚Æ‚ÅA•Û‘¶ƒ^ƒCƒ~ƒ“ƒO‚Æ•Û‘¶æ‚ğŒÅ’è‚·‚éB
+	// ImGuiã®ä½ç½®ãƒ»ã‚µã‚¤ã‚ºãƒ»é–‹é–‰çŠ¶æ…‹ã¯ã€å®Ÿè¡Œãƒ•ã‚©ãƒ«ãƒ€ã®å°‚ç”¨INIã¸ä¿å­˜ã™ã‚‹ã€‚
+	// IniFilenameã‚’nullptrã«ã—ã¦æ˜ç¤ºçš„ã«èª­ã¿æ›¸ãã™ã‚‹ã“ã¨ã§ã€ä¿å­˜ã‚¿ã‚¤ãƒŸãƒ³ã‚°ã¨ä¿å­˜å…ˆã‚’å›ºå®šã™ã‚‹ã€‚
 	ImGui::GetIO().IniFilename = nullptr;
-	// ƒŒƒCƒAƒEƒg•ÏX‚ğŒŸo‚µ‚½ƒtƒŒ[ƒ€‚Å•Û‘¶—v‹‚ğo‚·B
-	// ƒfƒoƒbƒK‚Ì’â~‚ÅI—¹ˆ—‚ªÈ—ª‚³‚ê‚Ä‚àA’¼‘O‚Ì”z’u‚ªc‚é‚æ‚¤‚É‚·‚éB
+	// ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆå¤‰æ›´ã‚’æ¤œå‡ºã—ãŸãƒ•ãƒ¬ãƒ¼ãƒ ã§ä¿å­˜è¦æ±‚ã‚’å‡ºã™ã€‚
+	// ãƒ‡ãƒãƒƒã‚¬ã®åœæ­¢ã§çµ‚äº†å‡¦ç†ãŒçœç•¥ã•ã‚Œã¦ã‚‚ã€ç›´å‰ã®é…ç½®ãŒæ®‹ã‚‹ã‚ˆã†ã«ã™ã‚‹ã€‚
 	ImGui::GetIO().IniSavingRate = 0.0f;
 	ImGui::LoadIniSettingsFromDisk("imgui_layout.ini");
 	ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\consola.ttf", 14.0f, nullptr, glyphRangesJapanese);
@@ -128,7 +132,7 @@ int framework::run()
 		}
 		else
 		{
-			// ƒtƒŒ[ƒ€‚²‚Æ‚Ìˆ—: ŠÔŒv‘ª -> XV -> •`‰æ -> FPS§ŒÀ
+			// ãƒ•ãƒ¬ãƒ¼ãƒ ã”ã¨ã®å‡¦ç†: æ™‚é–“è¨ˆæ¸¬ -> æ›´æ–° -> æç”» -> FPSåˆ¶é™
 			const auto frame_start = std::chrono::steady_clock::now();
 			tictoc.tick();
 			calculate_frame_stats();
@@ -144,7 +148,7 @@ int framework::run()
 					std::chrono::steady_clock::now() - frame_start).count();
 				if (remaining_seconds > 0.002f)
 				{
-					// ÅŒã‚Ì–ñ1ms‚ÍSleep‚¹‚¸Aƒ^ƒCƒ}[‚ÌŒë·‚Å–Ú•W‚ğ‘å‚«‚­’´‚¦‚È‚¢‚æ‚¤‚É‚·‚éB
+					// æœ€å¾Œã®ç´„1msã¯Sleepã›ãšã€ã‚¿ã‚¤ãƒãƒ¼ã®èª¤å·®ã§ç›®æ¨™ã‚’å¤§ããè¶…ãˆãªã„ã‚ˆã†ã«ã™ã‚‹ã€‚
 					Sleep(static_cast<DWORD>((remaining_seconds - 0.001f) * 1000.0f));
 				}
 				else
@@ -155,7 +159,7 @@ int framework::run()
 		}
 	}
 #ifdef USE_IMGUI
-	// I—¹’¼‘O‚É•K‚¸•Û‘¶‚·‚éBÜ‚èô‚İó‘ÔAˆÊ’uAƒTƒCƒY‚ªŸ‰ñ‹N“®‚É•œŒ³‚³‚ê‚éB
+	// çµ‚äº†ç›´å‰ã«å¿…ãšä¿å­˜ã™ã‚‹ã€‚æŠ˜ã‚Šç•³ã¿çŠ¶æ…‹ã€ä½ç½®ã€ã‚µã‚¤ã‚ºãŒæ¬¡å›èµ·å‹•æ™‚ã«å¾©å…ƒã•ã‚Œã‚‹ã€‚
 	ImGui::SaveIniSettingsToDisk("imgui_layout.ini");
 	ImGui_ImplDX11_Shutdown();
 	ImGui_ImplWin32_Shutdown();
@@ -169,7 +173,7 @@ int framework::run()
 void framework::update(float elapsed_time)
 {
 #ifdef USE_IMGUI
-	// ƒV[ƒ“‚Ì render() “à‚ÅƒEƒBƒWƒFƒbƒg‚ª‘—M‚³‚ê‚éê‡‚ª‚ ‚é‚½‚ßAæ‚É ImGui ‚ÌƒtƒŒ[ƒ€‚ğŠJn‚µ‚Ü‚·B
+	// ã‚·ãƒ¼ãƒ³ã® render() å†…ã§ã‚¦ã‚£ã‚¸ã‚§ãƒƒãƒˆãŒé€ä¿¡ã•ã‚Œã‚‹å ´åˆãŒã‚ã‚‹ãŸã‚ã€å…ˆã« ImGui ã®ãƒ•ãƒ¬ãƒ¼ãƒ ã‚’é–‹å§‹ã—ã¾ã™ã€‚
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
@@ -186,7 +190,7 @@ void framework::update(float elapsed_time)
 
 void framework::render(float elapsed_time)
 {
-	// –ˆƒtƒŒ[ƒ€‚ÌÀs‡˜: ‰æ–ÊƒNƒŠƒA -> ‹¤’ÊƒXƒe[ƒgİ’è -> ƒV[ƒ“•`‰æƒRƒ}ƒ“ƒh -> ImGuiˆ— -> ‰æ–Ê”½‰f(Present)
+	// æ¯ãƒ•ãƒ¬ãƒ¼ãƒ ã®å®Ÿè¡Œé †åº: ç”»é¢ã‚¯ãƒªã‚¢ -> å…±é€šã‚¹ãƒ†ãƒ¼ãƒˆè¨­å®š -> ã‚·ãƒ¼ãƒ³æç”»ã‚³ãƒãƒ³ãƒ‰ -> ImGuiå‡¦ç† -> ç”»é¢åæ˜ (Present)
 	const float clear_color[] = { 0.0f, 0.0f, 1.0f, 1.0f }; // 0.08f, 0.10f, 0.14f, 1.0f
 	immediate_context->ClearRenderTargetView(render_target_view.Get(), clear_color);
 	immediate_context->ClearDepthStencilView(depth_stencil_view.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
@@ -215,7 +219,7 @@ bool framework::uninitialize()
 	return true;
 }
 
-// ƒV[ƒ“‚ÌØ‚è‘Ö‚¦‚ÍAŒ»İ‚ÌƒV[ƒ“‚ğ uninitialize() ‚µ‚Ä”jŠü‚µAV‚µ‚¢ƒV[ƒ“‚ğ¶¬‚µ‚Ä initialize() ‚·‚éB
+// ã‚·ãƒ¼ãƒ³ã®åˆ‡ã‚Šæ›¿ãˆã¯ã€ç¾åœ¨ã®ã‚·ãƒ¼ãƒ³ã‚’ uninitialize() ã—ã¦ç ´æ£„ã—ã€æ–°ã—ã„ã‚·ãƒ¼ãƒ³ã‚’ç”Ÿæˆã—ã¦ initialize() ã™ã‚‹ã€‚
 void framework::change_scene(SceneType new_scene_type)
 {
 	if (current_scene) current_scene->uninitialize();
@@ -234,7 +238,7 @@ void framework::change_scene(SceneType new_scene_type)
 		current_scene.reset();
 }
 
-// ƒtƒŒ[ƒ€‚²‚Æ‚Ì“Œvî•ñ‚ğŒvZ‚µAƒEƒBƒ“ƒhƒEƒ^ƒCƒgƒ‹‚É FPS ‚ğ•\¦‚·‚é
+// ãƒ•ãƒ¬ãƒ¼ãƒ ã”ã¨ã®çµ±è¨ˆæƒ…å ±ã‚’è¨ˆç®—ã—ã€ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚¿ã‚¤ãƒˆãƒ«ã« FPS ã‚’è¡¨ç¤ºã™ã‚‹
 void framework::calculate_frame_stats()
 {
 	if (++frames_per_second && (tictoc.time_stamp() - count_by_seconds) >= 1.0f)
@@ -247,7 +251,7 @@ void framework::calculate_frame_stats()
 	}
 }
 
-// ƒEƒBƒ“ƒhƒEƒƒbƒZ[ƒW‚Ìˆ—BWM_DESTROY ‚Å PostQuitMessage() ‚ğŒÄ‚Ño‚·B
+// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã®å‡¦ç†ã€‚WM_DESTROY ã§ PostQuitMessage() ã‚’å‘¼ã³å‡ºã™ã€‚
 LRESULT CALLBACK framework::handle_message(HWND, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 #ifdef USE_IMGUI

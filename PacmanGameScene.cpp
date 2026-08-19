@@ -1,4 +1,5 @@
 ﻿#include "PacmanGameScene.h"
+#include "GameSave.h"
 #include <cmath>
 #include <algorithm>
 #include <cfloat>
@@ -10,6 +11,9 @@
 
 using namespace DirectX;
 
+// =============================================================================
+// Scene lifetime and per-frame update
+// =============================================================================
 bool PacmanGameScene::initialize(ID3D11Device* device)
 {
 	game_state = GameState::Playing;
@@ -35,6 +39,8 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	previous_enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
 	previous_escape_pressed = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
 	previous_debug_toggle_pressed = (GetAsyncKeyState(VK_F3) & 0x8000) != 0;
+	previous_pause_pressed = (GetAsyncKeyState('P') & 0x8000) != 0;
+	paused = false;
 	player_circuit_segments.clear();
 	circuit_cells.clear();
 
@@ -114,6 +120,21 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 
 void PacmanGameScene::update(float elapsed_time)
 {
+	// Pause is handled before any timer, AI, camera, or player update. This is
+	// what makes the freeze deterministic instead of merely hiding the scene.
+	if (!attract_mode && (game_state == GameState::Playing || game_state == GameState::Respawning))
+	{
+		const bool pause_pressed = (GetAsyncKeyState('P') & 0x8000) != 0;
+		if (pause_pressed && !previous_pause_pressed)
+			paused = !paused;
+		previous_pause_pressed = pause_pressed;
+		if (paused)
+		{
+			camera_controller->stop_editor_camera();
+			return;
+		}
+	}
+
 	if (!attract_mode)
 	{
 		enemy_near_miss_cooldown = (std::max)(enemy_near_miss_cooldown - elapsed_time, 0.0f);
@@ -272,35 +293,26 @@ void PacmanGameScene::update(float elapsed_time)
 	update_object_world_matrices();
 	total_time += elapsed_time;
 }
-
+// =============================================================================
+// Initial placement and transform conversion
+// =============================================================================
 void PacmanGameScene::configure_object_transforms()
 {
-
-
-
 	stage_transform = {
-		{ 0.0f, 0.0f, 0.0f },  // position
-		{ 0.0f, 0.0f, 0.0f },  // rotation_degrees
-		{ 2.5f, 2.5f, 2.5f }   // scale
+		{ 0.0f, 0.0f, 0.0f },
+		{ 0.0f, 0.0f, 0.0f },
+		{ 2.5f, 2.5f, 2.5f }
 	};
-
-
 	background_transform = {
-
 		{ 0.0f, 0.0f, 0.0f },
 		{ 0.0f, 0.0f, 0.0f },
 		{ 100.0f, 100.0f, 100.0f }
 	};
 
-
-
 	player_spawn_position = { 10.0f, 1.3f, -13.0f };
 	player->set_position(player_spawn_position);
 	player->set_angle({ XMConvertToRadians(0.0f), XMConvertToRadians(0.0f), XMConvertToRadians(0.0f) });
-
-
 	player->set_scale({ 0.6f, 0.6f, 0.6f });
-
 
 	enemy_spawn_position = { -10.0f, 1.3f, -13.0f };
 	enemy->set_position(enemy_spawn_position);
@@ -317,8 +329,6 @@ void PacmanGameScene::configure_object_transforms()
 
 void PacmanGameScene::update_object_world_matrices()
 {
-
-
 	const auto make_world_matrix = [](const ObjectTransform& transform)
 	{
 		const XMMATRIX scale = XMMatrixScaling(transform.scale.x, transform.scale.y, transform.scale.z);
@@ -485,7 +495,7 @@ void PacmanGameScene::update_scene_constants(ID3D11DeviceContext* immediate_cont
 void PacmanGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 {
 
-	// Draw the course first, then draw the moving car on top of it using the depth buffer.
+	// Draw the maze first, then its recovered paths and moving actors.
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1));
 	draw_player_circuit(immediate_context);
 	if (player_visible)
@@ -507,6 +517,9 @@ void PacmanGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 	draw_editor_helpers(immediate_context);
 }
 
+// =============================================================================
+// Circuit recovery rules and world-space debug helpers
+// =============================================================================
 void PacmanGameScene::record_player_circuit(const XMFLOAT3& start, const XMFLOAT3& end)
 {
 	const float move_x = end.x - start.x;
@@ -719,6 +732,9 @@ void PacmanGameScene::draw_editor_helpers(ID3D11DeviceContext* immediate_context
 	}
 }
 
+// =============================================================================
+// HUD and tactical-map presentation
+// =============================================================================
 void PacmanGameScene::draw_gameplay_hud(ID3D11DeviceContext* immediate_context)
 {
 	// Player-facing HUD: only information needed while moving through the maze.
@@ -772,6 +788,9 @@ void PacmanGameScene::draw_attract_hud(ID3D11DeviceContext* immediate_context)
 	text("CIRCUIT TRAX", 32.0f, 26.0f, 28.0f, 0.20f, 1.0f, 0.65f);
 	text("RESTORE THE LOST GRID", 34.0f, 64.0f, 14.0f, 0.78f, 0.90f, 1.0f);
 	text("ATTRACT MODE / LIVE DEMO", 34.0f, 90.0f, 12.0f, 0.40f, 0.88f, 0.82f);
+	char value[64]{};
+	std::snprintf(value, sizeof(value), "HIGH SCORE %06d", session_high_score);
+	text(value, 34.0f, 116.0f, 14.0f, 1.0f, 0.82f, 0.20f);
 	if (std::fmod(total_time, 1.0f) < 0.72f)
 		text("[ENTER] START GAME     [ESC] TERMINAL", 34.0f, 650.0f, 15.0f, 0.20f, 1.0f, 0.65f);
 }
@@ -1060,6 +1079,37 @@ void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
 	ImGui::End();
 	} // show_development_debug
 
+	if (paused)
+	{
+		// The dimmer is foreground-only, so it darkens the whole game without
+		// altering lighting constants or the underlying 3D render state.
+		ImDrawList* foreground = ImGui::GetOverlayDrawList();
+		const ImVec2 screen_size = ImGui::GetIO().DisplaySize;
+		foreground->AddRectFilled(ImVec2(0.0f, 0.0f), screen_size, IM_COL32(0, 0, 0, 135));
+
+		ImGui::SetNextWindowPos(ImVec2(screen_size.x * 0.5f, screen_size.y * 0.5f),
+			ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+		ImGui::SetNextWindowBgAlpha(0.94f);
+		ImGui::Begin("Pause Menu", nullptr,
+			ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse |
+			ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
+		ImGui::TextColored(ImVec4(0.20f, 1.0f, 0.65f, 1.0f), "PAUSED");
+		ImGui::Separator();
+		if (ImGui::Button("Restart", ImVec2(210.0f, 0.0f)))
+		{
+			paused = false;
+			next_scene_type = SceneType::PACMAN;
+		}
+		if (ImGui::Button("Return to title", ImVec2(210.0f, 0.0f)))
+		{
+			paused = false;
+			next_scene_type = SceneType::PACMAN_ATTRACT;
+		}
+		ImGui::Spacing();
+		ImGui::TextDisabled("Press P to resume");
+		ImGui::End();
+	}
+
 	if (game_state == GameState::GameOverFade || game_state == GameState::GameClearFade)
 	{
 		const bool is_clear = game_state == GameState::GameClearFade;
@@ -1179,6 +1229,7 @@ void PacmanGameScene::finish_to_result()
 		score += 5000 + lives * 1000;
 	}
 	session_high_score = (std::max)(session_high_score, score);
+	GameSave::save_high_score(session_high_score);
 	latest_game_result.score = score;
 	latest_game_result.high_score = session_high_score;
 	next_scene_type = SceneType::PACMAN_RESULT;

@@ -217,6 +217,7 @@
     <ClInclude Include="framework.h" />
     <ClInclude Include="geometric_primitive.h" />
     <ClInclude Include="high_resolution_timer.h" />
+	<ClInclude Include="GameSave.h" />
     <ClInclude Include="imgui\imconfig.h" />
     <ClInclude Include="imgui\imgui.h" />
     <ClInclude Include="imgui\imgui_impl_dx11.h" />

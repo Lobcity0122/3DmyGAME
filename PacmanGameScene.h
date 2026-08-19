@@ -1,47 +1,55 @@
-﻿#pragma once
+#pragma once
 
-#include "Scene.h"
-#include "PacmanPlayer.h"
 #include "CameraController.h"
-#include "static_mesh.h"
-#include "skinned_mesh.h"
+#include "PacmanPlayer.h"
+#include "Scene.h"
 #include "geometric_primitive.h"
+#include "skinned_mesh.h"
 #include "sprite.h"
+#include "static_mesh.h"
+
 #include <memory>
 #include <vector>
 #include <wrl.h>
 
-// このクラスは3Dパックマンライクなゲーム状態だけを管理する。
+// Owns one CIRCUIT TRAX play session.  It contains the rules and presentation
+// for both the playable scene and the title's no-input attract demonstration.
 class PacmanGameScene final : public Scene
 {
 public:
-	// false は通常プレイ、true はタイトル用の無操作デモ。
-	explicit PacmanGameScene(bool attract_mode = false) : attract_mode(attract_mode) {}
+	// false: normal play. true: title-screen attract mode using the same maze.
+	explicit PacmanGameScene(bool is_attract_mode = false) : attract_mode(is_attract_mode) {}
+
 	bool initialize(ID3D11Device* device) override;
 	void update(float elapsed_time) override;
 	void render(ID3D11DeviceContext* immediate_context, float elapsed_time) override;
 	void uninitialize() override;
-	SceneType get_type() const override { return attract_mode ? SceneType::PACMAN_ATTRACT : SceneType::PACMAN; }
+
+	SceneType get_type() const override
+	{
+		return attract_mode ? SceneType::PACMAN_ATTRACT : SceneType::PACMAN;
+	}
 	SceneType get_next_scene() const override { return next_scene_type; }
 
 private:
-	// PacmanPlayerがグリッド移動を扱い、CameraControllerが追従ビューを作る。
+	// -------------------------------------------------------------------------
+	// Scene objects and GPU resources
+	// -------------------------------------------------------------------------
 	std::unique_ptr<PacmanPlayer> player;
 	std::unique_ptr<PacmanPlayer> enemy;
 	std::unique_ptr<PacmanPlayer> enemy_second;
 	std::unique_ptr<CameraController> camera_controller;
 	std::unique_ptr<sprite> hud_font;
 
-	// 2つの独立したモデル読み込み用パス。ここに並べておくことで、違いや使い方が一目で比較できる。
-	std::unique_ptr<static_mesh> player_mesh;       // OBJ（プレイヤー）
-	std::unique_ptr<static_mesh> stage_mesh;        // OBJ（静的メッシュ：コース）
-	std::unique_ptr<static_mesh> collision_mesh;    // 描画しない壁専用OBJ（当たり判定）
-	std::unique_ptr<static_mesh> circuit_mesh;      // 描画しない通路専用OBJ（回路復旧判定）
-	std::unique_ptr<static_mesh> background_mesh;  // OBJ（背景用の静的メッシュ）
-	std::unique_ptr<cube> debug_cube;               // グリッドと軸の線を描くための簡易プリミティブ
+	std::unique_ptr<static_mesh> player_mesh;
+	std::unique_ptr<static_mesh> stage_mesh;
+	std::unique_ptr<static_mesh> background_mesh;
+	std::unique_ptr<static_mesh> collision_mesh; // Invisible collision-only OBJ.
+	std::unique_ptr<static_mesh> circuit_mesh;   // Corridor cells used by recovery.
+	std::unique_ptr<cube> debug_cube;
 
-	// シェーダーレジスタ b1: シーン内の全モデルで共有されるデータ。
-	// 各メッシュは独自の b0 バッファ（ワールド行列とマテリアルカラー）を作成・更新。
+	// Matches SCENE_CONSTANT_BUFFER (register b1) in static_mesh.hlsli.
+	// Every model reads the same camera, lighting, and shadow data from it.
 	struct SceneConstants
 	{
 		DirectX::XMFLOAT4X4 view_projection;
@@ -56,7 +64,18 @@ private:
 		DirectX::XMFLOAT4 post_process_settings;
 	};
 
-	// シーン内の光源設定。これをシェーダーに渡す。
+	Microsoft::WRL::ComPtr<ID3D11Buffer> scene_constant_buffer;
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> shadow_depth_texture;
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> shadow_depth_stencil_view;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shadow_shader_resource_view;
+	Microsoft::WRL::ComPtr<ID3D11SamplerState> shadow_sampler_state;
+	Microsoft::WRL::ComPtr<ID3D11RasterizerState> shadow_rasterizer_state;
+	Microsoft::WRL::ComPtr<ID3D11RasterizerState> background_rasterizer_state;
+	Microsoft::WRL::ComPtr<ID3D11RasterizerState> collision_wireframe_rasterizer_state;
+
+	// -------------------------------------------------------------------------
+	// Scene presentation settings
+	// -------------------------------------------------------------------------
 	struct LightSettings
 	{
 		DirectX::XMFLOAT3 direction{ -0.35f, -1.0f, 0.25f };
@@ -74,7 +93,6 @@ private:
 	};
 	LightSettings light_settings;
 
-	// Unity / Unreal のSceneビューを参考にした、編集時だけ表示する補助線の設定。
 	struct EditorDebugSettings
 	{
 		bool enable_editor_camera = true;
@@ -82,15 +100,15 @@ private:
 		bool show_axis_gizmo = true;
 		bool show_collision_model = false;
 		bool rotate_background = true;
-		float background_rotation_speed = 1.0f; // degrees / second
+		float background_rotation_speed = 2.0f; // Degrees per second.
 		float grid_half_size = 20.0f;
 		float grid_spacing = 1.0f;
 		float axis_length = 2.0f;
 	};
 	EditorDebugSettings editor_debug;
 
-	// Player 以外の静的なオブジェクト用 Transform。
-	// 回転は ImGui で扱いやすい「度」で保持し、描画直前に行列へ変換する。
+	// Stores authoring-friendly degrees. update_object_world_matrices converts
+	// this data to the matrices consumed by the renderer.
 	struct ObjectTransform
 	{
 		DirectX::XMFLOAT3 position{ 0.0f, 0.0f, 0.0f };
@@ -99,48 +117,61 @@ private:
 	};
 	ObjectTransform stage_transform;
 	ObjectTransform background_transform;
-
-	Microsoft::WRL::ComPtr<ID3D11Buffer> scene_constant_buffer;
-	Microsoft::WRL::ComPtr<ID3D11Texture2D> shadow_depth_texture;
-	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> shadow_depth_stencil_view;
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shadow_shader_resource_view;
-	Microsoft::WRL::ComPtr<ID3D11SamplerState> shadow_sampler_state;
-	Microsoft::WRL::ComPtr<ID3D11RasterizerState> shadow_rasterizer_state;
-	// カプセル背景を内側から見るため、背面も描画する専用ラスタライザ。
-	Microsoft::WRL::ComPtr<ID3D11RasterizerState> background_rasterizer_state;
-	Microsoft::WRL::ComPtr<ID3D11RasterizerState> collision_wireframe_rasterizer_state;
 	DirectX::XMFLOAT4X4 stage_world{};
 	DirectX::XMFLOAT4X4 background_world{};
+
+	UINT shadow_map_size = 2048;
+	UINT requested_shadow_map_size = 2048;
+
+	// -------------------------------------------------------------------------
+	// Play state, score, and AI tuning
+	// -------------------------------------------------------------------------
+	enum class GameState { Playing, Respawning, GameOverFade, GameClearFade };
+	GameState game_state = GameState::Playing;
+	int lives = 3;
+	float state_timer = 0.0f;
 	float total_time = 0.0f;
-	// Score belongs to the play scene. ResultScene only displays the completed record.
+	bool player_visible = true;
+	bool exit_requested = false;
+
 	int score = 0;
 	float survival_bonus_timer = 0.0f;
 	int recovery_chain = 0;
 	float recovery_chain_time_remaining = 0.0f;
-	// Generous window: this is an arcade reward for keeping momentum, not a strict test.
 	static constexpr float recovery_chain_window_seconds = 4.5f;
-	// Close passes reward brave routing, but each enemy has a short anti-farming cooldown.
+
 	float near_miss_radius = 2.25f;
 	float near_miss_cooldown_seconds = 1.50f;
 	float enemy_near_miss_cooldown = 0.0f;
 	float enemy_second_near_miss_cooldown = 0.0f;
 	float near_miss_popup_time = 0.0f;
 	int near_miss_popup_score = 0;
-	// Visual-only endgame escalation. Enemy movement settings stay unchanged.
+
+	// This changes HUD and lighting emphasis only; it does not change AI speed.
 	int system_alert_level = 0;
 	float system_alert_popup_time = 0.0f;
-	// Lightweight tactical map generated from stage_circuit cell bounds.
-	bool show_minimap = true;
-	bool rotate_minimap_with_player = true;
-	float minimap_rotation_angle = 0.0f;
-	float minimap_rotation_follow_speed = 5.0f;
-	// Enemy switches from patrol to chase only inside this horizontal range.
 	float enemy_chase_range = 12.0f;
-	// The orange interceptor aims this far ahead of the player's current direction.
 	float enemy_intercept_distance = 6.0f;
-	// Pac-Man-style tunnel. All coordinates are world-space after the stage transform.
-	// Measured from the player transform at each entrance: right X=10.983,
-	// left X=-11.296, Z=-0.003.
+
+	// -------------------------------------------------------------------------
+	// Maze data and warp gates
+	// -------------------------------------------------------------------------
+	struct CircuitSegment
+	{
+		DirectX::XMFLOAT3 start;
+		DirectX::XMFLOAT3 end;
+	};
+	struct CircuitCell
+	{
+		DirectX::XMFLOAT3 minimum;
+		DirectX::XMFLOAT3 maximum;
+		bool recovered = false;
+	};
+	std::vector<CircuitSegment> player_circuit_segments;
+	std::vector<CircuitCell> circuit_cells;
+
+	// Coordinates are world-space after applying stage_transform. The exits sit
+	// inside their trigger ranges, preventing an immediate warp back next frame.
 	struct WarpTunnelSettings
 	{
 		bool enabled = true;
@@ -148,75 +179,63 @@ private:
 		float half_width_z = 0.75f;
 		float left_trigger_x = -11.20f;
 		float right_trigger_x = 10.90f;
-		// Exits are intentionally inside each entrance trigger so an actor cannot
-		// immediately warp back during the following frame.
 		float exit_at_left_x = -10.95f;
 		float exit_at_right_x = 10.70f;
 	};
 	WarpTunnelSettings warp_tunnel;
 
-	// 敵接触後の処理を、通常プレイから分離して分かりやすく管理する。
-	enum class GameState { Playing, Respawning, GameOverFade, GameClearFade };
-	GameState game_state = GameState::Playing;
-	int lives = 3;
-	float state_timer = 0.0f;
-	bool player_visible = true;
-	bool exit_requested = false;
-	// デモは本編と同一の更新・描画経路を使い、プレイヤーの入力だけをAIへ差し替える。
+	// -------------------------------------------------------------------------
+	// Input, scene flow, and tactical-map presentation
+	// -------------------------------------------------------------------------
 	bool attract_mode = false;
 	SceneType next_scene_type = SceneType::PACMAN;
 	bool previous_enter_pressed = false;
 	bool previous_escape_pressed = false;
 	bool show_development_debug = false;
 	bool previous_debug_toggle_pressed = false;
+	bool paused = false;
+	bool previous_pause_pressed = false;
+
+	bool show_minimap = true;
+	bool rotate_minimap_with_player = true;
+	float minimap_rotation_angle = 0.0f;
+	float minimap_rotation_follow_speed = 5.0f;
+
 	DirectX::XMFLOAT3 player_spawn_position{};
 	DirectX::XMFLOAT3 enemy_spawn_position{};
 	DirectX::XMFLOAT3 enemy_second_spawn_position{};
 
-	// Make Trax型の「復旧済み回路」。敵ではなく自機が通過した区間だけを保持する。
-	struct CircuitSegment
-	{
-		DirectX::XMFLOAT3 start;
-		DirectX::XMFLOAT3 end;
-	};
-	std::vector<CircuitSegment> player_circuit_segments;
-	struct CircuitCell
-	{
-		DirectX::XMFLOAT3 minimum;
-		DirectX::XMFLOAT3 maximum;
-		bool recovered = false;
-	};
-	std::vector<CircuitCell> circuit_cells;
-	// ImGuiで選んだ解像度は、次フレームの開始時にGPUテクスチャへ反映する。
-	UINT shadow_map_size = 2048;
-	UINT requested_shadow_map_size = 2048;
-
-	// 描画関数は毎フレーム同じ順序でこれらを呼び出す。
-	void update_scene_constants(ID3D11DeviceContext* immediate_context);
-	void render_shadow_map(ID3D11DeviceContext* immediate_context);
-	bool create_shadow_map(ID3D11Device* device, UINT size);
-	DirectX::XMMATRIX calculate_light_view_projection() const;
+	// -------------------------------------------------------------------------
+	// Update and game-rule helpers
+	// -------------------------------------------------------------------------
 	void configure_object_transforms();
 	void update_object_world_matrices();
-	void draw_models(ID3D11DeviceContext* immediate_context);
-	void draw_editor_helpers(ID3D11DeviceContext* immediate_context);
-	void draw_hud(ID3D11DeviceContext* immediate_context);
-	void draw_gameplay_hud(ID3D11DeviceContext* immediate_context);
-	void draw_attract_hud(ID3D11DeviceContext* immediate_context);
-	void draw_minimap();
 	void update_minimap_rotation(float elapsed_time);
+	void update_system_alert(float elapsed_time);
 	void record_player_circuit(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end);
-	void draw_player_circuit(ID3D11DeviceContext* immediate_context);
 	void build_circuit_cells();
-	// Returns how many previously-unrecovered corridor cells were touched this frame.
 	int recover_circuit_cells_at(const DirectX::XMFLOAT3& position);
 	int get_recovered_circuit_cell_count() const;
 	int get_recovery_chain_multiplier() const;
-	void update_system_alert(float elapsed_time);
+	bool apply_warp_tunnel(PacmanPlayer& actor);
 	bool is_player_touching_enemy() const;
 	bool award_near_miss_if_needed(const PacmanPlayer& other, float& cooldown);
 	void begin_respawn_or_game_over();
 	void begin_game_clear();
 	void finish_to_result();
-	bool apply_warp_tunnel(PacmanPlayer& actor);
+
+	// -------------------------------------------------------------------------
+	// Rendering helpers
+	// -------------------------------------------------------------------------
+	bool create_shadow_map(ID3D11Device* device, UINT size);
+	DirectX::XMMATRIX calculate_light_view_projection() const;
+	void render_shadow_map(ID3D11DeviceContext* immediate_context);
+	void update_scene_constants(ID3D11DeviceContext* immediate_context);
+	void draw_models(ID3D11DeviceContext* immediate_context);
+	void draw_player_circuit(ID3D11DeviceContext* immediate_context);
+	void draw_editor_helpers(ID3D11DeviceContext* immediate_context);
+	void draw_hud(ID3D11DeviceContext* immediate_context);
+	void draw_gameplay_hud(ID3D11DeviceContext* immediate_context);
+	void draw_attract_hud(ID3D11DeviceContext* immediate_context);
+	void draw_minimap();
 };
