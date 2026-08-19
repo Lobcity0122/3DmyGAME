@@ -143,12 +143,17 @@ private:
 	float recovery_chain_time_remaining = 0.0f;
 	static constexpr float recovery_chain_window_seconds = 4.5f;
 
-	float near_miss_radius = 2.25f;
+	float near_miss_radius = 2.50f;
 	float near_miss_cooldown_seconds = 1.50f;
 	float enemy_near_miss_cooldown = 0.0f;
 	float enemy_second_near_miss_cooldown = 0.0f;
 	float near_miss_popup_time = 0.0f;
 	int near_miss_popup_score = 0;
+	// ニアミス成功を認識しやすくするため、得点表示と画面枠を少し長めに残す。
+	static constexpr float near_miss_effect_duration = 1.25f;
+	// 接近と被弾を画面全体で分かりやすく伝える短い演出タイマー。
+	float damage_flash_time = 0.0f;
+	static constexpr float damage_flash_duration = 0.42f;
 
 	// HUDとライティング演出だけを変える。敵AIの速度は変えない。
 	int system_alert_level = 0;

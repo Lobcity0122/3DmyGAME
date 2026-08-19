@@ -247,6 +247,10 @@
     <None Include="static_mesh.hlsli" />
   </ItemGroup>
   <ItemGroup>
+	<FxCompile Include="bloom_ps.hlsl">
+	  <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+	  <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+	</FxCompile>
     <FxCompile Include="effect_ps.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>

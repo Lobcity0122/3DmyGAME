@@ -3,6 +3,7 @@
 #include "MenuScene.h"
 #include "ResultScene.h"
 #include "GameSave.h"
+#include "shader.h"
 #include <chrono>
 #include <cmath>
 #include <sstream>
@@ -11,6 +12,12 @@
 #pragma comment(lib, "winmm.lib")
 
 using namespace Microsoft::WRL;
+
+namespace
+{
+	struct BloomVertex { DirectX::XMFLOAT3 position; DirectX::XMFLOAT4 color; DirectX::XMFLOAT2 texcoord; };
+	struct BloomConstants { DirectX::XMFLOAT2 texel_size; float threshold; float intensity; };
+}
 
 bool framework::initialize()
 {
@@ -91,6 +98,7 @@ bool framework::initialize()
 	viewport.MinDepth = 0.0f;
 	viewport.MaxDepth = 1.0f;
 	immediate_context->RSSetViewports(1, &viewport);
+	if (!create_bloom_resources()) return false;
 
 	// Read this before creating the first scene so every title/result screen
 	// starts from the same persistent value.
@@ -192,14 +200,17 @@ void framework::render(float elapsed_time)
 {
 	// 毎フレームの実行順序: 画面クリア -> 共通ステート設定 -> シーン描画コマンド -> ImGui処理 -> 画面反映(Present)
 	const float clear_color[] = { 0.0f, 0.0f, 1.0f, 1.0f }; // 0.08f, 0.10f, 0.14f, 1.0f
-	immediate_context->ClearRenderTargetView(render_target_view.Get(), clear_color);
+	ID3D11ShaderResourceView* null_srv = nullptr;
+	immediate_context->PSSetShaderResources(0, 1, &null_srv);
+	immediate_context->ClearRenderTargetView(scene_color_render_target_view.Get(), clear_color);
 	immediate_context->ClearDepthStencilView(depth_stencil_view.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
-	immediate_context->OMSetRenderTargets(1, render_target_view.GetAddressOf(), depth_stencil_view.Get());
+	immediate_context->OMSetRenderTargets(1, scene_color_render_target_view.GetAddressOf(), depth_stencil_view.Get());
 	immediate_context->OMSetDepthStencilState(depth_enabled_state.Get(), 0);
 	immediate_context->OMSetBlendState(opaque_blend_state.Get(), nullptr, 0xFFFFFFFF);
 	immediate_context->RSSetState(rasterizer_state.Get());
 	immediate_context->PSSetSamplers(0, 1, linear_sampler.GetAddressOf());
 	if (current_scene) current_scene->render(immediate_context.Get(), elapsed_time);
+	render_bloom();
 #ifdef USE_IMGUI
 	ImGui::Render();
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
@@ -210,6 +221,48 @@ void framework::render(float elapsed_time)
 	}
 #endif
 	swap_chain->Present(0, 0);
+}
+
+bool framework::create_bloom_resources()
+{
+	D3D11_TEXTURE2D_DESC texture_desc{};
+	texture_desc.Width = SCREEN_WIDTH; texture_desc.Height = SCREEN_HEIGHT;
+	texture_desc.MipLevels = texture_desc.ArraySize = 1;
+	texture_desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	texture_desc.SampleDesc.Count = 1;
+	texture_desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	if (FAILED(device->CreateTexture2D(&texture_desc, nullptr, scene_color_texture.GetAddressOf())) ||
+		FAILED(device->CreateRenderTargetView(scene_color_texture.Get(), nullptr, scene_color_render_target_view.GetAddressOf())) ||
+		FAILED(device->CreateShaderResourceView(scene_color_texture.Get(), nullptr, scene_color_shader_resource_view.GetAddressOf()))) return false;
+	const D3D11_INPUT_ELEMENT_DESC layout[] = {
+		{ "POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0 },
+		{ "COLOR",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 },
+		{ "TEXCOORD",0,DXGI_FORMAT_R32G32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0 } };
+	if (FAILED(create_vs_from_cso(device.Get(), "sprite_vs.cso", bloom_vertex_shader.GetAddressOf(), bloom_input_layout.GetAddressOf(), const_cast<D3D11_INPUT_ELEMENT_DESC*>(layout), ARRAYSIZE(layout))) ||
+		FAILED(create_ps_from_cso(device.Get(), "bloom_ps.cso", bloom_pixel_shader.GetAddressOf()))) return false;
+	const BloomVertex vertices[] = { {{-1,1,0},{1,1,1,1},{0,0}}, {{1,1,0},{1,1,1,1},{1,0}}, {{-1,-1,0},{1,1,1,1},{0,1}}, {{1,-1,0},{1,1,1,1},{1,1}} };
+	D3D11_BUFFER_DESC buffer_desc{}; buffer_desc.ByteWidth = sizeof(vertices); buffer_desc.Usage = D3D11_USAGE_IMMUTABLE; buffer_desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	D3D11_SUBRESOURCE_DATA data{}; data.pSysMem = vertices;
+	if (FAILED(device->CreateBuffer(&buffer_desc, &data, bloom_vertex_buffer.GetAddressOf()))) return false;
+	buffer_desc = {}; buffer_desc.ByteWidth = sizeof(BloomConstants); buffer_desc.Usage = D3D11_USAGE_DEFAULT; buffer_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	return SUCCEEDED(device->CreateBuffer(&buffer_desc, nullptr, bloom_constant_buffer.GetAddressOf()));
+}
+
+void framework::render_bloom()
+{
+	immediate_context->OMSetRenderTargets(1, render_target_view.GetAddressOf(), nullptr);
+	const UINT stride = sizeof(BloomVertex), offset = 0;
+	immediate_context->IASetInputLayout(bloom_input_layout.Get());
+	immediate_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+	immediate_context->IASetVertexBuffers(0, 1, bloom_vertex_buffer.GetAddressOf(), &stride, &offset);
+	immediate_context->VSSetShader(bloom_vertex_shader.Get(), nullptr, 0);
+	immediate_context->PSSetShader(bloom_pixel_shader.Get(), nullptr, 0);
+	BloomConstants constants{ { 1.0f / SCREEN_WIDTH, 1.0f / SCREEN_HEIGHT }, bloom_threshold, bloom_enabled ? bloom_intensity : 0.0f };
+	immediate_context->UpdateSubresource(bloom_constant_buffer.Get(), 0, nullptr, &constants, 0, 0);
+	immediate_context->PSSetConstantBuffers(0, 1, bloom_constant_buffer.GetAddressOf());
+	immediate_context->PSSetShaderResources(0, 1, scene_color_shader_resource_view.GetAddressOf());
+	immediate_context->PSSetSamplers(0, 1, linear_sampler.GetAddressOf());
+	immediate_context->Draw(4, 0);
 }
 
 bool framework::uninitialize()

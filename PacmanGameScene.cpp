@@ -29,6 +29,7 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	enemy_second_near_miss_cooldown = 0.0f;
 	near_miss_popup_time = 0.0f;
 	near_miss_popup_score = 0;
+	damage_flash_time = 0.0f;
 	system_alert_level = 0;
 	system_alert_popup_time = 0.0f;
 	minimap_rotation_angle = 0.0f;
@@ -131,6 +132,7 @@ void PacmanGameScene::update(float elapsed_time)
 		enemy_near_miss_cooldown = (std::max)(enemy_near_miss_cooldown - elapsed_time, 0.0f);
 		enemy_second_near_miss_cooldown = (std::max)(enemy_second_near_miss_cooldown - elapsed_time, 0.0f);
 		near_miss_popup_time = (std::max)(near_miss_popup_time - elapsed_time, 0.0f);
+		damage_flash_time = (std::max)(damage_flash_time - elapsed_time, 0.0f);
 		system_alert_popup_time = (std::max)(system_alert_popup_time - elapsed_time, 0.0f);
 	}
 	// アトラクトモードはEnterで本編へ、Escでゲーム選択画面へ戻れる。
@@ -754,7 +756,7 @@ void PacmanGameScene::draw_gameplay_hud(ID3D11DeviceContext* immediate_context)
 	if (near_miss_popup_time > 0.0f)
 	{
 		std::snprintf(value, sizeof(value), "NEAR MISS +%d", near_miss_popup_score);
-		const float rise = (0.80f - near_miss_popup_time) * 38.0f;
+		const float rise = (near_miss_effect_duration - near_miss_popup_time) * 38.0f;
 		text(value, 510.0f, 190.0f - rise, 18.0f, 1.0f, 0.82f, 0.25f);
 	}
 	if (system_alert_level > 0)
@@ -1105,6 +1107,28 @@ void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
 		ImGui::End();
 	}
 
+	// プレイへの反応を強めるため、UIとは別に前面へ短い画面演出を重ねる。
+	// ニアミスはシアン、被弾は赤いビネットで危険度を即座に伝える。
+	const ImVec2 effect_screen_size = ImGui::GetIO().DisplaySize;
+	ImDrawList* effect_draw_list = ImGui::GetOverlayDrawList();
+	if (near_miss_popup_time > 0.0f)
+	{
+		const float alpha_ratio = near_miss_popup_time / near_miss_effect_duration;
+		effect_draw_list->AddRect(ImVec2(effect_screen_size.x * 0.02f, effect_screen_size.y * 0.02f),
+			ImVec2(effect_screen_size.x * 0.98f, effect_screen_size.y * 0.98f),
+			IM_COL32(50, 255, 225, static_cast<int>(alpha_ratio * 235.0f)), 0.0f, 0, 7.0f);
+	}
+	if (damage_flash_time > 0.0f)
+	{
+		const float alpha_ratio = damage_flash_time / damage_flash_duration;
+		const float edge = 70.0f + (1.0f - alpha_ratio) * 80.0f;
+		const ImU32 color = IM_COL32(255, 25, 45, static_cast<int>(alpha_ratio * 165.0f));
+		effect_draw_list->AddRectFilled(ImVec2(0, 0), ImVec2(effect_screen_size.x, edge), color);
+		effect_draw_list->AddRectFilled(ImVec2(0, effect_screen_size.y - edge), effect_screen_size, color);
+		effect_draw_list->AddRectFilled(ImVec2(0, 0), ImVec2(edge, effect_screen_size.y), color);
+		effect_draw_list->AddRectFilled(ImVec2(effect_screen_size.x - edge, 0), effect_screen_size, color);
+	}
+
 	if (game_state == GameState::GameOverFade || game_state == GameState::GameClearFade)
 	{
 		const bool is_clear = game_state == GameState::GameClearFade;
@@ -1176,7 +1200,7 @@ bool PacmanGameScene::award_near_miss_if_needed(const PacmanPlayer& other, float
 
 	near_miss_popup_score = 500 * get_recovery_chain_multiplier();
 	score += near_miss_popup_score;
-	near_miss_popup_time = 0.80f;
+	near_miss_popup_time = near_miss_effect_duration;
 	cooldown = near_miss_cooldown_seconds;
 	return true;
 }
@@ -1187,6 +1211,7 @@ void PacmanGameScene::begin_respawn_or_game_over()
 	recovery_chain = 0;
 	recovery_chain_time_remaining = 0.0f;
 	near_miss_popup_time = 0.0f;
+	damage_flash_time = damage_flash_duration;
 	state_timer = 0.0f;
 	player_visible = false;
 	if (lives > 0)

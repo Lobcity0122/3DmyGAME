@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include <windows.h>
 #include <d3d11.h>
@@ -23,7 +23,7 @@ extern ImWchar glyphRangesJapanese[];
 class framework
 {
 public:
-	// ƒAƒvƒŠƒP[ƒVƒ‡ƒ“ƒ‹[ƒv‚ÌƒGƒ“ƒgƒŠ[ƒ|ƒCƒ“ƒgB‚±‚ÌƒNƒ‰ƒX‚ÍDirect3D‚ğŠ—L‚µAƒQ[ƒ€ƒIƒuƒWƒFƒNƒg‚ÍŠ—L‚µ‚È‚¢
+	// ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ãƒ«ãƒ¼ãƒ—ã®ã‚¨ãƒ³ãƒˆãƒªãƒ¼ãƒã‚¤ãƒ³ãƒˆã€‚ã“ã®ã‚¯ãƒ©ã‚¹ã¯Direct3Dã‚’æ‰€æœ‰ã—ã€ã‚²ãƒ¼ãƒ ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã¯æ‰€æœ‰ã—ãªã„
 	const HWND hwnd;
 	framework(HWND window) : hwnd(window) {}
 	~framework() = default;
@@ -34,15 +34,17 @@ public:
 	LRESULT CALLBACK handle_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
 private:
-	// ‰Šú‰»AƒtƒŒ[ƒ€‚²‚Æ‚ÌXVE•`‰æAI—¹ˆ—‚ÍˆÓ}“I‚É•ª—£
+	// åˆæœŸåŒ–ã€ãƒ•ãƒ¬ãƒ¼ãƒ ã”ã¨ã®æ›´æ–°ãƒ»æç”»ã€çµ‚äº†å‡¦ç†ã¯æ„å›³çš„ã«åˆ†é›¢
 	bool initialize();
 	void update(float elapsed_time);
 	void render(float elapsed_time);
+	bool create_bloom_resources();
+	void render_bloom();
 	bool uninitialize();
 	void change_scene(SceneType new_scene_type);
 	void calculate_frame_stats();
 
-	// ‚·‚×‚Ä‚ÌƒV[ƒ“‚Å‹¤—L‚³‚ê‚éDirect3DƒIƒuƒWƒFƒNƒg
+	// ã™ã¹ã¦ã®ã‚·ãƒ¼ãƒ³ã§å…±æœ‰ã•ã‚Œã‚‹Direct3Dã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
 	Microsoft::WRL::ComPtr<ID3D11Device> device;
 	Microsoft::WRL::ComPtr<ID3D11DeviceContext> immediate_context;
 	Microsoft::WRL::ComPtr<IDXGISwapChain> swap_chain;
@@ -52,8 +54,19 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11DepthStencilState> depth_enabled_state;
 	Microsoft::WRL::ComPtr<ID3D11BlendState> opaque_blend_state;
 	Microsoft::WRL::ComPtr<ID3D11RasterizerState> rasterizer_state;
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> scene_color_texture;
+	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> scene_color_render_target_view;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> scene_color_shader_resource_view;
+	Microsoft::WRL::ComPtr<ID3D11VertexShader> bloom_vertex_shader;
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> bloom_pixel_shader;
+	Microsoft::WRL::ComPtr<ID3D11InputLayout> bloom_input_layout;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> bloom_vertex_buffer;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> bloom_constant_buffer;
+	bool bloom_enabled = true;
+	float bloom_threshold = 0.65f;
+	float bloom_intensity = 0.75f;
 
-	// ƒV[ƒ“‚ªƒQ[ƒ€ƒ‹[ƒ‹‚Æƒ‚ƒfƒ‹‚ğŠ—L‚·‚éBframework‚Í‚±‚ÌƒCƒ“ƒ^[ƒtƒF[ƒX‚ğŒÄ‚Ño‚·‚¾‚¯
+	// ã‚·ãƒ¼ãƒ³ãŒã‚²ãƒ¼ãƒ ãƒ«ãƒ¼ãƒ«ã¨ãƒ¢ãƒ‡ãƒ«ã‚’æ‰€æœ‰ã™ã‚‹ã€‚frameworkã¯ã“ã®ã‚¤ãƒ³ã‚¿ãƒ¼ãƒ•ã‚§ãƒ¼ã‚¹ã‚’å‘¼ã³å‡ºã™ã ã‘
 	std::unique_ptr<Scene> current_scene;
 	SceneType requested_scene_type = SceneType::PACMAN;
 	high_resolution_timer tictoc;
