@@ -663,30 +663,9 @@ void PacmanGameScene::draw_player_circuit(ID3D11DeviceContext* immediate_context
 			XMMatrixRotationY(angle_y) *
 			XMMatrixTranslation(center.x, center.y, center.z));
 		debug_cube->render(immediate_context, world, circuit_color);
+
 	}
 
-	// 新しくつながった回路線の上を、小さな明るい光が移動する。
-	// チェイン中だけ描画して、移動中の生きた感じを出す。
-	if (recovery_chain > 0 && !player_circuit_segments.empty())
-	{
-		const CircuitSegment& newest = player_circuit_segments.back();
-		const float dx = newest.end.x - newest.start.x;
-		const float dz = newest.end.z - newest.start.z;
-		const float length = std::sqrt(dx * dx + dz * dz);
-		if (length > 0.001f)
-		{
-			const float travel = std::fmod(total_time * (4.0f + chain_multiplier), 1.0f);
-			const XMFLOAT3 pulse_position{
-				newest.start.x + dx * travel,
-				circuit_height + circuit_thickness * 0.20f,
-				newest.start.z + dz * travel };
-			XMFLOAT4X4 pulse_world{};
-			XMStoreFloat4x4(&pulse_world,
-				XMMatrixScaling(circuit_thickness * 1.35f, circuit_thickness * 0.45f, circuit_thickness * 1.35f) *
-				XMMatrixTranslation(pulse_position.x, pulse_position.y, pulse_position.z));
-			debug_cube->render(immediate_context, pulse_world, XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
-		}
-	}
 }
 
 void PacmanGameScene::draw_editor_helpers(ID3D11DeviceContext* immediate_context)
