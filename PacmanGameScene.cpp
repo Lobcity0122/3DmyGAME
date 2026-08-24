@@ -51,6 +51,7 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	enemy_second = create_actor();
 	camera_controller = std::make_unique<CameraController>();
 	player_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
+	enemy_mesh = std::make_unique<static_mesh>(device, L".\\resources\\enemy_drone\\enemy_drone.obj");
 	hud_font = std::make_unique<sprite>(device, L".\\resources\\fonts\\font0.png");
 
 	XMFLOAT3 player_model_min{}, player_model_max{};
@@ -442,8 +443,8 @@ void PacmanGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1), nullptr, true);
 	if (player_visible)
 		player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
-	player_mesh->render(immediate_context, enemy->get_transform(), XMFLOAT4(1, 0.08f, 0.08f, 1), nullptr, true);
-	player_mesh->render(immediate_context, enemy_second->get_transform(), XMFLOAT4(1, 0.55f, 0.05f, 1), nullptr, true);
+	enemy_mesh->render(immediate_context, enemy->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
+	enemy_mesh->render(immediate_context, enemy_second->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
 
 	immediate_context->OMSetRenderTargets(1, previous_rtv.GetAddressOf(), previous_dsv.Get());
 	immediate_context->RSSetViewports(1, &previous_viewport);
@@ -505,8 +506,10 @@ void PacmanGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 	draw_player_circuit(immediate_context);
 	if (player_visible)
 		player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1));
-	player_mesh->render(immediate_context, enemy->get_transform(), XMFLOAT4(1, 0.08f, 0.08f, 1));
-	player_mesh->render(immediate_context, enemy_second->get_transform(), XMFLOAT4(1, 0.55f, 0.05f, 1));
+	// 同一ドローンでも色味を変えて、追跡役（赤）と先回り役（橙）を識別する。
+	// テクスチャと乗算するため、モデル固有の傷・発光コアの情報は残る。
+	enemy_mesh->render(immediate_context, enemy->get_transform(), XMFLOAT4(1.0f, 0.20f, 0.24f, 1.0f));
+	enemy_mesh->render(immediate_context, enemy_second->get_transform(), XMFLOAT4(1.0f, 0.72f, 0.16f, 1.0f));
 	if (editor_debug.show_collision_model)
 	{
 		Microsoft::WRL::ComPtr<ID3D11RasterizerState> previous_rasterizer;
@@ -1235,6 +1238,7 @@ void PacmanGameScene::uninitialize()
 {
 	hud_font.reset();
 	player_mesh.reset();
+	enemy_mesh.reset();
 	stage_mesh.reset();
 	collision_mesh.reset();
 	circuit_mesh.reset();

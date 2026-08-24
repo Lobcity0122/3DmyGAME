@@ -93,9 +93,9 @@
     <ClInclude Include="high_resolution_timer.h">
       <Filter>Headers</Filter>
     </ClInclude>
-	<ClInclude Include="GameSave.h">
-	  <Filter>Headers</Filter>
-	</ClInclude>
+    <ClInclude Include="GameSave.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
     <ClInclude Include="misc.h">
       <Filter>Headers</Filter>
     </ClInclude>
@@ -209,6 +209,9 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="skinned_mesh_ps.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="bloom_ps.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

@@ -42,6 +42,9 @@ private:
 	std::unique_ptr<sprite> hud_font;
 
 	std::unique_ptr<static_mesh> player_mesh;
+	// 敵2体で共有する通常描画用ドローンモデル。当たり判定は従来どおり
+	// PacmanPlayerのAABBとcollision_meshで処理する。
+	std::unique_ptr<static_mesh> enemy_mesh;
 	std::unique_ptr<static_mesh> stage_mesh;
 	std::unique_ptr<static_mesh> background_mesh;
 	std::unique_ptr<static_mesh> collision_mesh; // 描画しない当たり判定専用OBJ。
