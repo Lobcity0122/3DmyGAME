@@ -7,8 +7,8 @@
 #include <chrono>
 #include <cmath>
 #include <sstream>
-#include <mmsystem.h>
 
+// timeBeginPeriod / timeEndPeriod はFPS制御に使用するため、音声とは独立してwinmm.libをリンクする。
 #pragma comment(lib, "winmm.lib")
 
 using namespace Microsoft::WRL;
@@ -99,6 +99,9 @@ bool framework::initialize()
 	viewport.MaxDepth = 1.0f;
 	immediate_context->RSSetViewports(1, &viewport);
 	if (!create_bloom_resources()) return false;
+	// AudioSystemはネイティブXAudio2を使い、描画用のDirectXTKとは独立している。
+	audio_system = std::make_unique<AudioSystem>();
+	if (!audio_system->initialize()) return false;
 
 	// Read this before creating the first scene so every title/result screen
 	// starts from the same persistent value.
@@ -180,6 +183,8 @@ int framework::run()
 
 void framework::update(float elapsed_time)
 {
+	// ループBGMはXAudio2の再生スレッドで継続する。
+	// 効果音を実際に追加する段階で、ワンショット解放用のaudio_system->update()をここで有効化する。
 #ifdef USE_IMGUI
 	// シーンの render() 内でウィジェットが送信される場合があるため、先に ImGui のフレームを開始します。
 	ImGui_ImplDX11_NewFrame();
@@ -267,6 +272,10 @@ void framework::render_bloom()
 
 bool framework::uninitialize()
 {
+	// BGMを停止して音声デバイスを解放してから終了する。
+	if (audio_system) audio_system->shutdown();
+	audio_system.reset();
+	playing_bgm_path = nullptr;
 	if (current_scene) current_scene->uninitialize();
 	current_scene.reset();
 	return true;
@@ -286,9 +295,31 @@ void framework::change_scene(SceneType new_scene_type)
 	else if (new_scene_type == SceneType::MENU)
 		current_scene = std::make_unique<MenuScene>();
 	if (current_scene && current_scene->initialize(device.Get()))
+	{
 		requested_scene_type = new_scene_type;
+		update_background_music(new_scene_type);
+	}
 	else
 		current_scene.reset();
+}
+
+// シーンごとにBGMを切り替える。MENU/デモ/リザルトはタイトル曲、本編はステージ曲を使う。
+// 同じ曲を使うシーン間では、再生位置をリセットせずそのまま継続する。
+void framework::update_background_music(SceneType scene_type)
+{
+	const wchar_t* next_bgm_path = nullptr;
+	if (scene_type == SceneType::PACMAN)
+		next_bgm_path = L".\\resources\\Audio\\stage1.wav";
+	else if (scene_type == SceneType::MENU || scene_type == SceneType::PACMAN_ATTRACT || scene_type == SceneType::PACMAN_RESULT)
+		next_bgm_path = L".\\resources\\Audio\\title1.wav";
+
+	if (playing_bgm_path == next_bgm_path) return;
+
+	playing_bgm_path = next_bgm_path;
+	if (audio_system && playing_bgm_path)
+		audio_system->play_bgm(playing_bgm_path);
+	else if (audio_system)
+		audio_system->stop_bgm();
 }
 
 // フレームごとの統計情報を計算し、ウィンドウタイトルに FPS を表示する

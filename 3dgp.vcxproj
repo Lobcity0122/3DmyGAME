@@ -189,6 +189,7 @@
     </FxCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AudioSystem.cpp" />
     <ClCompile Include="CameraController.cpp" />
     <ClCompile Include="Collision.cpp" />
     <ClCompile Include="geometric_primitive.cpp" />
@@ -212,6 +213,7 @@
     <ClCompile Include="texture.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AudioSystem.h" />
     <ClInclude Include="CameraController.h" />
     <ClInclude Include="Collision.h" />
     <ClInclude Include="framework.h" />

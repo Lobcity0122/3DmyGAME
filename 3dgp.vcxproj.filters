@@ -22,6 +22,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AudioSystem.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
     <ClCompile Include="framework.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
@@ -87,6 +90,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AudioSystem.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
     <ClInclude Include="framework.h">
       <Filter>Headers</Filter>
     </ClInclude>

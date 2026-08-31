@@ -4,6 +4,7 @@
 #include <d3d11.h>
 #include <wrl.h>
 #include <memory>
+#include "AudioSystem.h"
 #include "high_resolution_timer.h"
 #include "Scene.h"
 
@@ -42,6 +43,7 @@ private:
 	void render_bloom();
 	bool uninitialize();
 	void change_scene(SceneType new_scene_type);
+	void update_background_music(SceneType scene_type);
 	void calculate_frame_stats();
 
 	// すべてのシーンで共有されるDirect3Dオブジェクト
@@ -69,6 +71,9 @@ private:
 	// シーンがゲームルールとモデルを所有する。frameworkはこのインターフェースを呼び出すだけ
 	std::unique_ptr<Scene> current_scene;
 	SceneType requested_scene_type = SceneType::PACMAN;
+	// フレームワークが音声システムを所有し、シーンはゲームイベントだけを通知する。
+	std::unique_ptr<AudioSystem> audio_system;
+	const wchar_t* playing_bgm_path = nullptr;
 	high_resolution_timer tictoc;
 	// Change this value to change the application's maximum frame rate.
 	static constexpr float target_fps = 144.0f;
