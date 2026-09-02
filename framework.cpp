@@ -106,7 +106,8 @@ bool framework::initialize()
 	// Read this before creating the first scene so every title/result screen
 	// starts from the same persistent value.
 	session_high_score = GameSave::load_high_score();
-	change_scene(SceneType::MENU);
+	// 起動直後は、3Dのライブデモを背景にしたタイトル画面を表示する。
+	change_scene(SceneType::PACMAN_ATTRACT);
 	return current_scene != nullptr;
 }
 

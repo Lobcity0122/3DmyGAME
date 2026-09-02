@@ -1,22 +1,22 @@
-#include "MenuScene.h"
+﻿#include "MenuScene.h"
+
 #include <windows.h>
 #include <cmath>
-#include <algorithm>
+#include <cstdio>
 
 namespace
 {
 	constexpr float screen_width = 1280.0f;
 	constexpr float screen_height = 720.0f;
+	constexpr float attract_start_delay = 18.0f;
 }
-
-MenuScene::MenuScene() = default;
-MenuScene::~MenuScene() = default;
 
 bool MenuScene::initialize(ID3D11Device* device)
 {
 	next_scene_type = SceneType::MENU;
-	selected_game = 0;
-	locked_message_timer = 0.0f;
+	idle_seconds = 0.0f;
+	title_pulse_time = 0.0f;
+	previous_enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
 	background = std::make_unique<sprite>(device, L".\\resources\\cyberpunk.jpg");
 	font = std::make_unique<sprite>(device, L".\\resources\\fonts\\font0.png");
 	return true;
@@ -24,57 +24,43 @@ bool MenuScene::initialize(ID3D11Device* device)
 
 void MenuScene::update(float elapsed_time)
 {
-	locked_message_timer = (std::max)(locked_message_timer - elapsed_time, 0.0f);
-	const bool left_pressed = ((GetAsyncKeyState(VK_LEFT) & 0x8000) || (GetAsyncKeyState('A') & 0x8000)) != 0;
-	const bool right_pressed = ((GetAsyncKeyState(VK_RIGHT) & 0x8000) || (GetAsyncKeyState('D') & 0x8000)) != 0;
+	title_pulse_time += elapsed_time;
 	const bool enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
-	if (left_pressed && !previous_left_pressed) selected_game = (selected_game + 2) % 3;
-	if (right_pressed && !previous_right_pressed) selected_game = (selected_game + 1) % 3;
 	if (enter_pressed && !previous_enter_pressed)
 	{
-		// BOOT����͖{�҂ł͂Ȃ��A�A�[�P�[�h➑̂炵���^�C�g���^�f����ʂ֓���B
-		if (selected_game == 0) next_scene_type = SceneType::PACMAN_ATTRACT;
-		else locked_message_timer = 1.5f;
+		next_scene_type = SceneType::PACMAN;
+		return;
 	}
-	previous_left_pressed = left_pressed;
-	previous_right_pressed = right_pressed;
 	previous_enter_pressed = enter_pressed;
+
+	// 放置時だけ3Dデモへ移り、デモ中のEnterはそのまま本編開始になる。
+	if (enter_pressed) idle_seconds = 0.0f;
+	else idle_seconds += elapsed_time;
+	if (idle_seconds >= attract_start_delay) next_scene_type = SceneType::PACMAN_ATTRACT;
 }
 
 void MenuScene::render(ID3D11DeviceContext* immediate_context, float)
 {
-	// 背景を暗くして、その上にゲーム機�E端末画面を重ねる、E	background->render(immediate_context, 0.0f, 0.0f, screen_width, screen_height, 0.08f, 0.10f, 0.22f, 1.0f, 0.0f);
+	background->render(immediate_context, 0.0f, 0.0f, screen_width, screen_height,
+		0.05f, 0.07f, 0.16f, 1.0f, 0.0f);
 	const auto text = [this, immediate_context](const char* value, float x, float y, float size,
 		float r, float g, float b)
 	{
 		font->textout(immediate_context, value, x, y, size, size, r, g, b, 1.0f);
 	};
 
-	text("NEXUS-01 GAME TERMINAL", 180, 60, 25, 0.25f, 1.0f, 0.85f);
-	text("SYSTEM STATUS: ONLINE", 180, 100, 14, 0.45f, 0.80f, 1.0f);
-	text("----------------------------------------------------------------", 150, 135, 10, 0.15f, 0.85f, 0.65f);
+	const float pulse = 0.72f + 0.28f * (0.5f + 0.5f * std::sinf(title_pulse_time * 2.0f));
+	text("CIRCUIT TRAX", 395.0f, 185.0f, 42.0f, 0.15f, pulse, 0.64f);
+	text("RESTORE THE LOST GRID", 455.0f, 250.0f, 17.0f, 0.76f, 0.92f, 1.0f);
+	text("AVOID SECURITY DRONES. COMPLETE EVERY CIRCUIT.", 325.0f, 335.0f, 15.0f, 0.72f, 0.86f, 1.0f);
+	text("REBUILD THE NETWORK. SURVIVE THE SYSTEM.", 360.0f, 365.0f, 15.0f, 0.72f, 0.86f, 1.0f);
 
-	const char* titles[] = { "CIRCUIT TRAX", "VOID RACER", "STAR RELAY" };
-	const char* statuses[] = { "ONLINE", "LOCKED", "COMING SOON" };
-	const float card_x[] = { 150.0f, 470.0f, 790.0f };
-	for (int index = 0; index < 3; ++index)
-	{
-		const bool selected = selected_game == index;
-		const float r = selected ? 0.15f : 0.35f;
-		const float g = selected ? 1.00f : 0.35f;
-		const float b = selected ? 0.65f : 0.55f;
-		text(selected ? ">" : " ", card_x[index], 255, 24, r, g, b);
-		text(titles[index], card_x[index] + 28, 255, selected ? 22.0f : 17.0f, r, g, b);
-		text(statuses[index], card_x[index] + 28, 292, 14, r, g, b);
-		text("[----------]", card_x[index] + 28, 325, 14, r, g, b);
-	}
-
-	text("CIRCUIT TRAX", 180, 450, 21, 0.25f, 1.0f, 0.85f);
-	text("RESTORE THE LOST GRID.", 180, 485, 14, 0.75f, 0.90f, 1.0f);
-	text("AVOID SECURITY DRONES. COMPLETE EVERY CIRCUIT.", 180, 512, 14, 0.75f, 0.90f, 1.0f);
-	text("[LEFT][RIGHT]: SELECT     [ENTER]: BOOT", 180, 630, 15, 0.25f, 1.0f, 0.85f);
-	if (locked_message_timer > 0.0f)
-		text("GAME DATA LOCKED", 490, 570, 18, 1.0f, 0.25f, 0.25f);
+	char score_line[64]{};
+	std::snprintf(score_line, sizeof(score_line), "HIGH SCORE %06d", session_high_score);
+	text(score_line, 505.0f, 445.0f, 17.0f, 1.0f, 0.82f, 0.20f);
+	if (std::fmod(title_pulse_time, 1.0f) < 0.75f)
+		text("[ENTER] START GAME", 482.0f, 585.0f, 20.0f, 0.15f, 1.0f, 0.65f);
+	text("IDLE: LIVE DEMO", 545.0f, 630.0f, 12.0f, 0.42f, 0.78f, 0.88f);
 }
 
 void MenuScene::uninitialize()

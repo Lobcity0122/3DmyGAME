@@ -41,7 +41,9 @@ private:
 	std::unique_ptr<CameraController> camera_controller;
 	std::unique_ptr<sprite> hud_font;
 
+	// 見た目用の自機モデル。移動・衝突サイズは従来のcube.objを基準に保つ。
 	std::unique_ptr<static_mesh> player_mesh;
+	std::unique_ptr<static_mesh> player_collision_reference_mesh;
 	// 敵2体で共有する通常描画用ドローンモデル。当たり判定は従来どおり
 	// PacmanPlayerのAABBとcollision_meshで処理する。
 	std::unique_ptr<static_mesh> enemy_mesh;
@@ -125,6 +127,8 @@ private:
 	ObjectTransform background_transform;
 	DirectX::XMFLOAT4X4 stage_world{};
 	DirectX::XMFLOAT4X4 background_world{};
+	float player_visual_scale = 0.010f;
+	float player_visual_yaw_offset_degrees = 90.0f;
 
 	UINT shadow_map_size = 2048;
 	UINT requested_shadow_map_size = 2048;
@@ -221,6 +225,7 @@ private:
 	// -------------------------------------------------------------------------
 	void configure_object_transforms();
 	void update_object_world_matrices();
+	DirectX::XMFLOAT4X4 get_player_visual_transform() const;
 	void update_minimap_rotation(float elapsed_time);
 	void update_system_alert(float elapsed_time);
 	void record_player_circuit(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end);

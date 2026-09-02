@@ -1,0 +1,11 @@
+Model Information:
+* title:	Drone
+* source:	https://sketchfab.com/3d-models/drone-5ab1f5b36f33476b82f59d28033dcbdd
+* author:	jayjee (https://sketchfab.com/jayjee)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Drone" (https://sketchfab.com/3d-models/drone-5ab1f5b36f33476b82f59d28033dcbdd) by jayjee (https://sketchfab.com/jayjee) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

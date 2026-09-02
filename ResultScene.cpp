@@ -16,7 +16,8 @@ bool ResultScene::initialize(ID3D11Device* device)
 	next_scene_type = SceneType::PACMAN_RESULT;
 	blink_time = 0.0f;
 	previous_enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
-	background = std::make_unique<sprite>(device, L".\\resources\\cyberpunk.jpg");
+	// リザルト専用の回路背景。中央を暗くして結果テキストを読み取りやすくしている。
+	background = std::make_unique<sprite>(device, L".\\resources\\ui\\result_background.png");
 	font = std::make_unique<sprite>(device, L".\\resources\\fonts\\font0.png");
 	return true;
 }
@@ -34,15 +35,19 @@ void ResultScene::update(float elapsed_time)
 void ResultScene::render(ID3D11DeviceContext* immediate_context, float)
 {
 	// 背景、見出し、プレイ結果、戻る案内の順に重ねて描画する。
+	const GameResultData& result = latest_game_result;
+	// CLEAR は冷色、GAME OVER はわずかに警告色へ寄せる。背景の明るさは控えめに保つ。
+	const float background_r = result.cleared ? 0.56f : 0.50f;
+	const float background_g = result.cleared ? 0.72f : 0.30f;
+	const float background_b = result.cleared ? 0.78f : 0.36f;
 	background->render(immediate_context, 0.0f, 0.0f, screen_width, screen_height,
-		0.035f, 0.045f, 0.10f, 1.0f, 0.0f);
+		background_r, background_g, background_b, 1.0f, 0.0f);
 	const auto text = [this, immediate_context](const char* value, float x, float y,
 		float size, float r, float g, float b)
 	{
 		font->textout(immediate_context, value, x, y, size, size, r, g, b, 1.0f);
 	};
 
-	const GameResultData& result = latest_game_result;
 	const float title_r = result.cleared ? 0.15f : 1.0f;
 	const float title_g = result.cleared ? 1.0f : 0.18f;
 	const float title_b = result.cleared ? 0.60f : 0.18f;

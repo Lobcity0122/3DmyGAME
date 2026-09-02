@@ -50,12 +50,13 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	enemy = create_actor();
 	enemy_second = create_actor();
 	camera_controller = std::make_unique<CameraController>();
-	player_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
+	player_mesh = std::make_unique<static_mesh>(device, L".\\resources\\Player\\player.obj");
+	player_collision_reference_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
 	enemy_mesh = std::make_unique<static_mesh>(device, L".\\resources\\enemy_drone\\enemy_drone.obj");
 	hud_font = std::make_unique<sprite>(device, L".\\resources\\fonts\\font0.png");
 
 	XMFLOAT3 player_model_min{}, player_model_max{};
-	player_mesh->get_bounding_box(player_model_min, player_model_max);
+	player_collision_reference_mesh->get_bounding_box(player_model_min, player_model_max);
 	for (PacmanPlayer* actor : { player.get(), enemy.get(), enemy_second.get() })
 		actor->set_collision_model_bounds(player_model_min, player_model_max);
 	stage_mesh = std::make_unique<static_mesh>(device, L".\\resources\\stage\\pac-man_level_namco_nes\\stage.obj");
@@ -136,14 +137,14 @@ void PacmanGameScene::update(float elapsed_time)
 		damage_flash_time = (std::max)(damage_flash_time - elapsed_time, 0.0f);
 		system_alert_popup_time = (std::max)(system_alert_popup_time - elapsed_time, 0.0f);
 	}
-	// アトラクトモードはEnterで本編へ、Escでゲーム選択画面へ戻れる。
+	// アトラクトモードはタイトル画面を兼ねる。Enterで本編を開始し、Escはタイトルへ留まる。
 	// 押下した瞬間だけを拾うため、シーン切り替えを連続発生させない。
 	if (attract_mode)
 	{
 		const bool enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
 		const bool escape_pressed = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
 		if (enter_pressed && !previous_enter_pressed) next_scene_type = SceneType::PACMAN;
-		if (escape_pressed && !previous_escape_pressed) next_scene_type = SceneType::MENU;
+		if (escape_pressed && !previous_escape_pressed) next_scene_type = SceneType::PACMAN_ATTRACT;
 		previous_enter_pressed = enter_pressed;
 		previous_escape_pressed = escape_pressed;
 	}
@@ -340,6 +341,18 @@ void PacmanGameScene::update_object_world_matrices()
 	XMStoreFloat4x4(&background_world, make_world_matrix(background_transform));
 }
 
+// 大きなOBJを、既存のプレイヤー座標・浮遊・向きへ重ねる。
+// playerのscaleはAABB当たり判定にも使われるため、見た目の縮小は別に適用する。
+XMFLOAT4X4 PacmanGameScene::get_player_visual_transform() const
+{
+	XMFLOAT4X4 transform{};
+	const XMMATRIX model_scale = XMMatrixScaling(player_visual_scale, player_visual_scale, player_visual_scale);
+	const XMMATRIX model_rotation = XMMatrixRotationY(XMConvertToRadians(player_visual_yaw_offset_degrees));
+	const XMMATRIX actor_transform = XMLoadFloat4x4(&player->get_transform());
+	XMStoreFloat4x4(&transform, model_scale * model_rotation * actor_transform);
+	return transform;
+}
+
 void PacmanGameScene::render(ID3D11DeviceContext* immediate_context, float)
 {
 	if (requested_shadow_map_size != shadow_map_size)
@@ -442,7 +455,7 @@ void PacmanGameScene::render_shadow_map(ID3D11DeviceContext* immediate_context)
 
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1), nullptr, true);
 	if (player_visible)
-		player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
+		player_mesh->render(immediate_context, get_player_visual_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
 	enemy_mesh->render(immediate_context, enemy->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
 	enemy_mesh->render(immediate_context, enemy_second->get_transform(), XMFLOAT4(1, 1, 1, 1), nullptr, true);
 
@@ -505,7 +518,7 @@ void PacmanGameScene::draw_models(ID3D11DeviceContext* immediate_context)
 	stage_mesh->render(immediate_context, stage_world, XMFLOAT4(1, 1, 1, 1));
 	draw_player_circuit(immediate_context);
 	if (player_visible)
-		player_mesh->render(immediate_context, player->get_transform(), XMFLOAT4(1, 1, 1, 1));
+		player_mesh->render(immediate_context, get_player_visual_transform(), XMFLOAT4(1, 1, 1, 1));
 	// 同一ドローンでも色味を変えて、追跡役（赤）と先回り役（橙）を識別する。
 	// テクスチャと乗算するため、モデル固有の傷・発光コアの情報は残る。
 	enemy_mesh->render(immediate_context, enemy->get_transform(), XMFLOAT4(1.0f, 0.20f, 0.24f, 1.0f));
@@ -772,7 +785,7 @@ void PacmanGameScene::draw_attract_hud(ID3D11DeviceContext* immediate_context)
 	std::snprintf(value, sizeof(value), "HIGH SCORE %06d", session_high_score);
 	text(value, 34.0f, 116.0f, 14.0f, 1.0f, 0.82f, 0.20f);
 	if (std::fmod(total_time, 1.0f) < 0.72f)
-		text("[ENTER] START GAME     [ESC] TERMINAL", 34.0f, 650.0f, 15.0f, 0.20f, 1.0f, 0.65f);
+		text("[ENTER] START GAME", 34.0f, 650.0f, 15.0f, 0.20f, 1.0f, 0.65f);
 }
 
 void PacmanGameScene::update_minimap_rotation(float elapsed_time)
@@ -1000,6 +1013,9 @@ void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
 
 		XMFLOAT3 scale = player->get_scale();
 		if (ImGui::DragFloat3("Scale", &scale.x, 0.01f, 0.01f, 100.0f)) player->set_scale(scale);
+		ImGui::DragFloat("Visual model scale", &player_visual_scale, 0.0005f, 0.001f, 0.100f, "%.4f");
+		ImGui::DragFloat("Visual model yaw offset", &player_visual_yaw_offset_degrees, 1.0f, -180.0f, 180.0f, "%.0f deg");
+		ImGui::TextDisabled("Scale affects collision. Visual model scale affects drawing only.");
 		float hover_amplitude = player->get_hover_amplitude();
 		if (ImGui::DragFloat("Hover amplitude", &hover_amplitude, 0.005f, 0.0f, 1.0f))
 			player->set_hover_amplitude(hover_amplitude);
@@ -1238,6 +1254,7 @@ void PacmanGameScene::uninitialize()
 {
 	hud_font.reset();
 	player_mesh.reset();
+	player_collision_reference_mesh.reset();
 	enemy_mesh.reset();
 	stage_mesh.reset();
 	collision_mesh.reset();
