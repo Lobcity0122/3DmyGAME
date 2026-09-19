@@ -41,6 +41,10 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	previous_escape_pressed = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
 	previous_debug_toggle_pressed = (GetAsyncKeyState(VK_F3) & 0x8000) != 0;
 	previous_pause_pressed = (GetAsyncKeyState('P') & 0x8000) != 0;
+	previous_pause_up_pressed = (GetAsyncKeyState('W') & 0x8000) != 0;
+	previous_pause_down_pressed = (GetAsyncKeyState('S') & 0x8000) != 0;
+	previous_pause_enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
+	pause_menu_item = PauseMenuItem::Restart;
 	paused = false;
 	player_circuit_segments.clear();
 	circuit_cells.clear();
@@ -54,6 +58,7 @@ bool PacmanGameScene::initialize(ID3D11Device* device)
 	player_collision_reference_mesh = std::make_unique<static_mesh>(device, L".\\resources\\cube.obj");
 	enemy_mesh = std::make_unique<static_mesh>(device, L".\\resources\\enemy_drone\\enemy_drone.obj");
 	hud_font = std::make_unique<sprite>(device, L".\\resources\\fonts\\font0.png");
+	pause_background = std::make_unique<sprite>(device, L".\\resources\\ui\\hud_fullscreen_frame_simple.png");
 
 	XMFLOAT3 player_model_min{}, player_model_max{};
 	player_collision_reference_mesh->get_bounding_box(player_model_min, player_model_max);
@@ -120,11 +125,22 @@ void PacmanGameScene::update(float elapsed_time)
 	{
 		const bool pause_pressed = (GetAsyncKeyState('P') & 0x8000) != 0;
 		if (pause_pressed && !previous_pause_pressed)
+		{
 			paused = !paused;
+			if (paused)
+			{
+				// 開くたびに最初の項目へ戻し、押しっぱなしのキーを新規入力として扱わない。
+				pause_menu_item = PauseMenuItem::Restart;
+				previous_pause_up_pressed = (GetAsyncKeyState('W') & 0x8000) != 0;
+				previous_pause_down_pressed = (GetAsyncKeyState('S') & 0x8000) != 0;
+				previous_pause_enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
+			}
+		}
 		previous_pause_pressed = pause_pressed;
 		if (paused)
 		{
 			camera_controller->stop_editor_camera();
+			update_pause_menu_input();
 			return;
 		}
 	}
@@ -287,6 +303,36 @@ void PacmanGameScene::update(float elapsed_time)
 	update_minimap_rotation(elapsed_time);
 	update_object_world_matrices();
 	total_time += elapsed_time;
+}
+
+void PacmanGameScene::update_pause_menu_input()
+{
+	const bool up_pressed = (GetAsyncKeyState('W') & 0x8000) != 0;
+	const bool down_pressed = (GetAsyncKeyState('S') & 0x8000) != 0;
+	const bool enter_pressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
+
+	// 項目は2つだけなので、WとSのどちらでも反対側へ切り替えれば循環できる。
+	const bool move_selection =
+		(up_pressed && !previous_pause_up_pressed) ||
+		(down_pressed && !previous_pause_down_pressed);
+	if (move_selection)
+	{
+		pause_menu_item = pause_menu_item == PauseMenuItem::Restart
+			? PauseMenuItem::ReturnToTitle
+			: PauseMenuItem::Restart;
+	}
+
+	if (enter_pressed && !previous_pause_enter_pressed)
+	{
+		paused = false;
+		next_scene_type = pause_menu_item == PauseMenuItem::Restart
+			? SceneType::PACMAN
+			: SceneType::PACMAN_ATTRACT;
+	}
+
+	previous_pause_up_pressed = up_pressed;
+	previous_pause_down_pressed = down_pressed;
+	previous_pause_enter_pressed = enter_pressed;
 }
 
 // =============================================================================
@@ -769,6 +815,13 @@ void PacmanGameScene::draw_gameplay_hud(ID3D11DeviceContext* immediate_context)
 	text(value, 990.0f, 22.0f, 14.0f, 0.20f, 1.0f, 0.65f);
 	std::snprintf(value, sizeof(value), "LIVES %d / 3", lives);
 	text(value, 1060.0f, 48.0f, 14.0f, 1.0f, 0.36f, 0.40f);
+
+	// 右下のミニマップを見る流れで確認できるよう、操作ガイドを直上へ配置する。
+	// 先に暗い文字を少しずらして描き、明るい背景でも読める影を作る。
+	text("WASD : MOVE", 1082.0f, 438.0f, 12.0f, 0.01f, 0.04f, 0.08f);
+	text("P    : PAUSE", 1082.0f, 460.0f, 12.0f, 0.01f, 0.04f, 0.08f);
+	text("WASD : MOVE", 1080.0f, 436.0f, 12.0f, 0.72f, 0.90f, 1.0f);
+	text("P    : PAUSE", 1080.0f, 458.0f, 12.0f, 0.20f, 1.0f, 0.65f);
 }
 
 void PacmanGameScene::draw_attract_hud(ID3D11DeviceContext* immediate_context)
@@ -778,14 +831,21 @@ void PacmanGameScene::draw_attract_hud(ID3D11DeviceContext* immediate_context)
 	{
 		hud_font->textout(immediate_context, value, x, y, size, size, r, g, b, 1.0f);
 	};
-	text("CIRCUIT TRAX", 32.0f, 26.0f, 28.0f, 0.20f, 1.0f, 0.65f);
-	text("RESTORE THE LOST GRID", 34.0f, 64.0f, 14.0f, 0.78f, 0.90f, 1.0f);
-	text("ATTRACT MODE / LIVE DEMO", 34.0f, 90.0f, 12.0f, 0.40f, 0.88f, 0.82f);
+
+	// タイトル画面の上部中央へ、製品名とバージョンをひとまとまりのロゴとして配置する。
+	// 暗い影を先に描いてから明るい文字を重ね、3D背景の上でも輪郭が埋もれないようにする。
+	text("CIRCUIT TRAX", 428.0f, 23.0f, 36.0f, 0.01f, 0.08f, 0.10f);
+	text("CIRCUIT TRAX", 424.0f, 19.0f, 36.0f, 0.20f, 1.0f, 0.65f);
+	text("SYSTEM VERSION 1.0", 548.0f, 63.0f, 11.0f, 0.40f, 0.88f, 1.0f);
+	text("RESTORE THE LOST GRID", 514.0f, 84.0f, 12.0f, 0.78f, 0.90f, 1.0f);
+
+	// デモ状態と記録はロゴから離し、補助情報として左上にまとめる。
+	text("ATTRACT MODE / LIVE DEMO", 24.0f, 24.0f, 12.0f, 0.40f, 0.88f, 0.82f);
 	char value[64]{};
 	std::snprintf(value, sizeof(value), "HIGH SCORE %06d", session_high_score);
-	text(value, 34.0f, 116.0f, 14.0f, 1.0f, 0.82f, 0.20f);
+	text(value, 24.0f, 50.0f, 14.0f, 1.0f, 0.82f, 0.20f);
 	if (std::fmod(total_time, 1.0f) < 0.72f)
-		text("[ENTER] START GAME", 34.0f, 650.0f, 15.0f, 0.20f, 1.0f, 0.65f);
+		text("[ENTER] START GAME", 442.0f, 642.0f, 20.0f, 0.20f, 1.0f, 0.65f);
 }
 
 void PacmanGameScene::update_minimap_rotation(float elapsed_time)
@@ -802,7 +862,7 @@ void PacmanGameScene::update_minimap_rotation(float elapsed_time)
 void PacmanGameScene::draw_minimap()
 {
 #ifdef USE_IMGUI
-	if (!show_minimap || circuit_cells.empty() || attract_mode) return;
+	if (!show_minimap || circuit_cells.empty() || attract_mode || paused) return;
 
 	// 復旧判定と同じセルから意図的に生成している。そのため、見た目用の
 	// ステージメッシュが変わっても戦術マップの通路情報は正しく保たれる。
@@ -899,7 +959,7 @@ void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
 		draw_minimap();
 	}
 #ifdef USE_IMGUI
-	if (show_development_debug && !attract_mode)
+	if (show_development_debug && !attract_mode && !paused)
 	{
 
 	ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
@@ -1074,46 +1134,56 @@ void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
 	ImGui::End();
 	} // 開発用デバッグUI
 
-	if (paused)
+	// ImGuiを利用する一時的な画面演出は、開発UIと同じ描画経路で処理する。
+	draw_screen_effects();
+#endif
+	// ポーズ画面は製品HUDと同じsprite/textout経路で最後に重ねる。
+	draw_pause_menu(immediate_context);
+}
+
+void PacmanGameScene::draw_pause_menu(ID3D11DeviceContext* immediate_context)
+{
+	if (!paused) return;
+
+	// 半透明のフルスクリーン画像でゲーム画面を落ち着かせ、選択肢へ視線を集める。
+	pause_background->render(immediate_context, 0.0f, 0.0f, 1280.0f, 720.0f,
+		0.10f, 0.16f, 0.20f, 0.82f, 0.0f);
+
+	const auto text = [this, immediate_context](const char* value, float x, float y, float size,
+		float r, float g, float b)
 	{
-		// 前面描画だけで暗幕を重ねる。ライト定数や3Dの描画状態を変えずに、
-		// ゲーム画面全体を暗くできる。
-		ImDrawList* foreground = ImGui::GetOverlayDrawList();
-		const ImVec2 screen_size = ImGui::GetIO().DisplaySize;
-		foreground->AddRectFilled(ImVec2(0.0f, 0.0f), screen_size, IM_COL32(0, 0, 0, 135));
+		hud_font->textout(immediate_context, value, x, y, size, size, r, g, b, 1.0f);
+	};
+	text("PAUSED", 550.0f, 205.0f, 30.0f, 0.20f, 1.0f, 0.65f);
+	text("------------------------", 466.0f, 250.0f, 14.0f, 0.18f, 0.65f, 0.72f);
 
-		ImGui::SetNextWindowPos(ImVec2(screen_size.x * 0.5f, screen_size.y * 0.5f),
-			ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-		ImGui::SetNextWindowBgAlpha(0.94f);
-		ImGui::Begin("Pause Menu", nullptr,
-			ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse |
-			ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
-		ImGui::TextColored(ImVec4(0.20f, 1.0f, 0.65f, 1.0f), "PAUSED");
-		ImGui::Separator();
-		if (ImGui::Button("Restart", ImVec2(210.0f, 0.0f)))
-		{
-			paused = false;
-			next_scene_type = SceneType::PACMAN;
-		}
-		if (ImGui::Button("Return to title", ImVec2(210.0f, 0.0f)))
-		{
-			paused = false;
-			next_scene_type = SceneType::PACMAN_ATTRACT;
-		}
-		ImGui::Spacing();
-		ImGui::TextDisabled("Press P to resume");
-		ImGui::End();
-	}
+	// 選択中の項目だけを大きな黄緑色と両端のカーソルで強調する。
+	const bool restart_selected = pause_menu_item == PauseMenuItem::Restart;
+	text(restart_selected ? ">  RESTART  <" : "   RESTART", restart_selected ? 506.0f : 548.0f,
+		300.0f, restart_selected ? 22.0f : 17.0f,
+		restart_selected ? 1.0f : 0.62f, restart_selected ? 0.86f : 0.72f,
+		restart_selected ? 0.20f : 0.82f);
+	text(!restart_selected ? ">  RETURN TO TITLE  <" : "   RETURN TO TITLE",
+		!restart_selected ? 420.0f : 492.0f, 355.0f, !restart_selected ? 22.0f : 17.0f,
+		!restart_selected ? 1.0f : 0.62f, !restart_selected ? 0.86f : 0.72f,
+		!restart_selected ? 0.20f : 0.82f);
 
-	// プレイへの反応を強めるため、UIとは別に前面へ短い画面演出を重ねる。
+	text("W / S : SELECT", 520.0f, 445.0f, 13.0f, 0.72f, 0.90f, 1.0f);
+	text("ENTER : DECIDE", 520.0f, 470.0f, 13.0f, 0.72f, 0.90f, 1.0f);
+	text("P     : RESUME", 520.0f, 495.0f, 13.0f, 0.20f, 1.0f, 0.65f);
+}
+
+void PacmanGameScene::draw_screen_effects()
+{
+#ifdef USE_IMGUI
 	// ニアミスはシアン、被弾は赤いビネットで危険度を即座に伝える。
-	const ImVec2 effect_screen_size = ImGui::GetIO().DisplaySize;
-	ImDrawList* effect_draw_list = ImGui::GetOverlayDrawList();
+	const ImVec2 screen_size = ImGui::GetIO().DisplaySize;
+	ImDrawList* foreground = ImGui::GetOverlayDrawList();
 	if (near_miss_popup_time > 0.0f)
 	{
 		const float alpha_ratio = near_miss_popup_time / near_miss_effect_duration;
-		effect_draw_list->AddRect(ImVec2(effect_screen_size.x * 0.02f, effect_screen_size.y * 0.02f),
-			ImVec2(effect_screen_size.x * 0.98f, effect_screen_size.y * 0.98f),
+		foreground->AddRect(ImVec2(screen_size.x * 0.02f, screen_size.y * 0.02f),
+			ImVec2(screen_size.x * 0.98f, screen_size.y * 0.98f),
 			IM_COL32(50, 255, 225, static_cast<int>(alpha_ratio * 235.0f)), 0.0f, 0, 7.0f);
 	}
 	if (damage_flash_time > 0.0f)
@@ -1121,25 +1191,30 @@ void PacmanGameScene::draw_hud(ID3D11DeviceContext* immediate_context)
 		const float alpha_ratio = damage_flash_time / damage_flash_duration;
 		const float edge = 70.0f + (1.0f - alpha_ratio) * 80.0f;
 		const ImU32 color = IM_COL32(255, 25, 45, static_cast<int>(alpha_ratio * 165.0f));
-		effect_draw_list->AddRectFilled(ImVec2(0, 0), ImVec2(effect_screen_size.x, edge), color);
-		effect_draw_list->AddRectFilled(ImVec2(0, effect_screen_size.y - edge), effect_screen_size, color);
-		effect_draw_list->AddRectFilled(ImVec2(0, 0), ImVec2(edge, effect_screen_size.y), color);
-		effect_draw_list->AddRectFilled(ImVec2(effect_screen_size.x - edge, 0), effect_screen_size, color);
+		foreground->AddRectFilled(ImVec2(0, 0), ImVec2(screen_size.x, edge), color);
+		foreground->AddRectFilled(ImVec2(0, screen_size.y - edge), screen_size, color);
+		foreground->AddRectFilled(ImVec2(0, 0), ImVec2(edge, screen_size.y), color);
+		foreground->AddRectFilled(ImVec2(screen_size.x - edge, 0), screen_size, color);
 	}
 
-	if (game_state == GameState::GameOverFade || game_state == GameState::GameClearFade)
-	{
-		const bool is_clear = game_state == GameState::GameClearFade;
-		const float fade_time = is_clear ? (std::max)(state_timer - 0.8f, 0.0f) : state_timer;
-		const float alpha = (std::min)(fade_time / 2.0f, 1.0f);
-		ImDrawList* foreground = ImGui::GetOverlayDrawList();
-		const ImVec2 screen_size = ImGui::GetIO().DisplaySize;
-		foreground->AddRectFilled(ImVec2(0, 0), screen_size, IM_COL32(0, 0, 0, static_cast<int>(alpha * 255.0f)));
-		if (is_clear || alpha > 0.35f)
-			foreground->AddText(ImVec2(screen_size.x * 0.5f - (is_clear ? 30.0f : 42.0f), screen_size.y * 0.5f),
-				is_clear ? IM_COL32(80, 255, 150, 255) : IM_COL32(255, 80, 80, 255),
-				is_clear ? "CLEAR!" : "GAME OVER");
-	}
+	if (game_state != GameState::GameOverFade && game_state != GameState::GameClearFade) return;
+
+	// 終了状態では暗転を進め、結果に応じたメッセージを画面中央へ出す。
+	const bool is_clear = game_state == GameState::GameClearFade;
+	const float fade_time = is_clear ? (std::max)(state_timer - 0.8f, 0.0f) : state_timer;
+	const float alpha = (std::min)(fade_time / 2.0f, 1.0f);
+	foreground->AddRectFilled(ImVec2(0, 0), screen_size,
+		IM_COL32(0, 0, 0, static_cast<int>(alpha * 255.0f)));
+	if (!is_clear && alpha <= 0.35f) return;
+
+	// GAME OVER は最終通知なので、CLEAR より大きく表示する。
+	const char* message = is_clear ? "CLEAR!" : "GAME OVER";
+	const float message_size = is_clear ? 24.0f : 54.0f;
+	ImFont* message_font = ImGui::GetFont();
+	const ImVec2 message_extent = message_font->CalcTextSizeA(message_size, 10000.0f, 0.0f, message);
+	foreground->AddText(message_font, message_size,
+		ImVec2((screen_size.x - message_extent.x) * 0.5f, (screen_size.y - message_extent.y) * 0.5f),
+		is_clear ? IM_COL32(80, 255, 150, 255) : IM_COL32(255, 80, 80, 255), message);
 #endif
 }
 
@@ -1252,6 +1327,7 @@ void PacmanGameScene::finish_to_result()
 
 void PacmanGameScene::uninitialize()
 {
+	pause_background.reset();
 	hud_font.reset();
 	player_mesh.reset();
 	player_collision_reference_mesh.reset();

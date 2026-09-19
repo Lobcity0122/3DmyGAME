@@ -40,6 +40,7 @@ private:
 	std::unique_ptr<PacmanPlayer> enemy_second;
 	std::unique_ptr<CameraController> camera_controller;
 	std::unique_ptr<sprite> hud_font;
+	std::unique_ptr<sprite> pause_background;
 
 	// 見た目用の自機モデル。移動・衝突サイズは従来のcube.objを基準に保つ。
 	std::unique_ptr<static_mesh> player_mesh;
@@ -210,6 +211,12 @@ private:
 	bool previous_debug_toggle_pressed = false;
 	bool paused = false;
 	bool previous_pause_pressed = false;
+	// ポーズ中はW/Sで項目を選び、Enterで決定する。
+	enum class PauseMenuItem { Restart, ReturnToTitle };
+	PauseMenuItem pause_menu_item = PauseMenuItem::Restart;
+	bool previous_pause_up_pressed = false;
+	bool previous_pause_down_pressed = false;
+	bool previous_pause_enter_pressed = false;
 
 	bool show_minimap = true;
 	bool rotate_minimap_with_player = true;
@@ -228,6 +235,7 @@ private:
 	DirectX::XMFLOAT4X4 get_player_visual_transform() const;
 	void update_minimap_rotation(float elapsed_time);
 	void update_system_alert(float elapsed_time);
+	void update_pause_menu_input();
 	void record_player_circuit(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end);
 	void build_circuit_cells();
 	int recover_circuit_cells_at(const DirectX::XMFLOAT3& position);
@@ -255,4 +263,7 @@ private:
 	void draw_gameplay_hud(ID3D11DeviceContext* immediate_context);
 	void draw_attract_hud(ID3D11DeviceContext* immediate_context);
 	void draw_minimap();
+	// HUDの後から重ねる画面演出。ポーズ操作とゲーム状態の通知を分離して管理する。
+	void draw_pause_menu(ID3D11DeviceContext* immediate_context);
+	void draw_screen_effects();
 };

@@ -52,7 +52,8 @@ void ResultScene::render(ID3D11DeviceContext* immediate_context, float)
 	const float title_g = result.cleared ? 1.0f : 0.18f;
 	const float title_b = result.cleared ? 0.60f : 0.18f;
 	text("CIRCUIT TRAX", 455.0f, 105.0f, 30.0f, 0.35f, 0.85f, 1.0f);
-	text(result.cleared ? "CIRCUIT RESTORED" : "SYSTEM FAILURE", 395.0f, 185.0f, 30.0f, title_r, title_g, title_b);
+	text(result.cleared ? "CIRCUIT RESTORED" : "SYSTEM FAILURE", 395.0f, 185.0f,
+		30.0f, title_r, title_g, title_b);
 	text("--------------------------------------------------", 335.0f, 235.0f, 12.0f, 0.2f, 0.75f, 0.72f);
 
 	char line[96]{};
