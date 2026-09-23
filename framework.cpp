@@ -1,4 +1,6 @@
-﻿#include "framework.h"
+﻿// 2026-9-23 提出
+
+#include "framework.h"
 #include "PacmanGameScene.h"
 #include "MenuScene.h"
 #include "ResultScene.h"
