@@ -131,8 +131,8 @@ private:
 	float player_visual_scale = 0.010f;
 	float player_visual_yaw_offset_degrees = 90.0f;
 
-	UINT shadow_map_size = 2048;
-	UINT requested_shadow_map_size = 2048;
+	UINT shadow_map_size = 4096;
+	UINT requested_shadow_map_size = 4096;
 
 	// -------------------------------------------------------------------------
 	// プレイ状態、スコア、AI調整値
